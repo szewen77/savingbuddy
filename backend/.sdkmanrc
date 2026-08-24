@@ -1,0 +1,2 @@
+# Use `sdk env` to switch to this JDK before running ./mvnw
+java=21.0.11-tem

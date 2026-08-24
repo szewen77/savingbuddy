@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  /* Inter Tight carries the numerals: same skeleton as the body face, drawn
+     narrower, so large amounts stay dense without switching voice. */
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+
+  /* Palette lifted from the SavingBuddy design */
+  --color-ink: #191c1a;      /* primary text, dark surfaces */
+  --color-cream: #f6f7f4;    /* text on dark surfaces */
+  --color-canvas: #f1f2ee;   /* app background */
+  --color-paper: #fdfdfb;    /* cards */
+  --color-mist: #e4e7e1;     /* progress tracks */
+  --color-haze: #edf0ea;     /* active nav, date chips */
+  --color-fog: #e9ece6;      /* neutral chips */
+  --color-dew: #dfeae1;      /* mint-tinted chips / income groups */
+  --color-sage: #dde6de;
+  --color-ash: #d8dcd4;
+  --color-dust: #dfe2dc;
+
+  --color-forest: #4c6b5a;   /* positive accent */
+  --color-moss: #3b5546;     /* dark green text */
+  --color-fern: #7fa98d;
+  --color-mint: #a8d5ba;     /* highlight on dark */
+  --color-pine: #14261c;     /* text on mint */
+
+  --color-clay: #99694a;     /* warning accent */
+  --color-clay-deep: #4a3a2c;
+  --color-clay-light: #c99b72;
+  --color-clay-pale: #e0bfa1;
+  --color-clay-dark: #2e2013;
+  --color-clay-soft: #c4ae99;
+
+  --shadow-float: 0 8px 20px -10px rgb(25 28 26 / 0.6);
+  --shadow-hero: 0 20px 44px -24px rgb(25 28 26 / 0.6);
+  --shadow-toast: 0 16px 34px -16px rgb(25 28 26 / 0.6);
+  --shadow-modal: 0 30px 70px -30px rgb(0 0 0 / 0.6);
+
+  --radius-card: 22px;
+  --radius-hero: 26px;
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; }
+  body { @apply bg-canvas text-ink font-sans; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgb(25 28 26 / 0.16); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+}
+
+@layer components {
+  .card { @apply bg-paper border border-ink/8 rounded-[22px]; }
+  .hero { @apply bg-ink rounded-[26px] text-cream; }
+  .kicker { @apply text-[11px] font-semibold uppercase tracking-[0.14em]; }
+
+  /* Large amounts. Tracking is in em so it holds across every size it is used at. */
+  .display { @apply font-display font-semibold leading-none tracking-[-0.03em]; }
+
+  /* Prose set in the display face — statements, not figures. */
+  .display-prose { @apply font-display font-medium tracking-[-0.01em]; }
+
+  /* Figures that stack in a column and should align digit-for-digit. */
+  .tnum { font-variant-numeric: tabular-nums; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-toast { animation: toast-in 220ms cubic-bezier(.2,.8,.2,1) both; }
+.animate-fade { animation: fade-in 160ms ease-out both; }
+.animate-pop { animation: pop-in 200ms cubic-bezier(.2,.8,.2,1) both; }

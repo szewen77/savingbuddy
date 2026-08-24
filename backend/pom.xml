@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.1</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>my.savingbuddy</groupId>
+  <artifactId>savingbuddy-api</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <name>SavingBuddy API</name>
+  <description>Backend for SavingBuddy — safe-to-spend budgeting</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <node.version>v22.23.1</node.version>
+    <frontend.dir>${project.basedir}/../frontend</frontend.dir>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <!-- The starter, not flyway-core alone: Boot 4 ships each technology's
+         autoconfiguration in its own module, and without it Flyway never runs. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-flyway</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      Builds the React app and packages it into the JAR, so `java -jar` serves the
+      whole product on one port. Skip with -DskipFrontend (useful for a fast
+      backend-only test loop).
+    -->
+    <profile>
+      <id>web</id>
+      <activation>
+        <property><name>!skipFrontend</name></property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.github.eirslett</groupId>
+            <artifactId>frontend-maven-plugin</artifactId>
+            <version>2.0.2</version>
+            <configuration>
+              <workingDirectory>${frontend.dir}</workingDirectory>
+              <installDirectory>${project.build.directory}/node</installDirectory>
+            </configuration>
+            <executions>
+              <execution>
+                <id>install-node</id>
+                <goals><goal>install-node-and-npm</goal></goals>
+                <configuration><nodeVersion>${node.version}</nodeVersion></configuration>
+              </execution>
+              <execution>
+                <id>npm-ci</id>
+                <goals><goal>npm</goal></goals>
+                <configuration><arguments>ci --no-audit --no-fund</arguments></configuration>
+              </execution>
+              <execution>
+                <id>npm-build</id>
+                <goals><goal>npm</goal></goals>
+                <configuration><arguments>run build</arguments></configuration>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>copy-frontend</id>
+                <phase>process-resources</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                  <resources>
+                    <resource><directory>${frontend.dir}/dist</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

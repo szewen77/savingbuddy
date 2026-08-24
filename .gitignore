@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+target/
+*.tsbuildinfo
+
+# Local database and backups (the app writes to ~/.savingbuddy, but older
+# builds used a relative path — keep this so a stray one is never committed)
+data/
+
+# Local env and editor noise
+.env.local
+.env
+.DS_Store
+.idea/
+*.iml
+.vscode/

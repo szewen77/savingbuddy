@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: savingbuddy-api
+
+  datasource:
+    # Absolute path under the user's home. A relative path would resolve against
+    # the working directory, so launching from elsewhere would silently open a
+    # different (empty) database and look like data loss.
+    url: jdbc:h2:file:${user.home}/.savingbuddy/db/savingbuddy;MODE=PostgreSQL;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      # Flyway owns the schema. Hibernate only checks that it matches the
+      # entities and refuses to start if it does not — it never rewrites it.
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+  # Local-only app: bind to loopback so the API is not served to the network.
+  address: 127.0.0.1
+
+savingbuddy:
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  backup:
+    enabled: true
+    # Snapshots kept in ~/.savingbuddy/backups, oldest pruned beyond this.
+    keep: 7

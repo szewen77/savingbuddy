@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:savingbuddy-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      # Same contract as production: Flyway builds the schema, Hibernate verifies
+      # it. This makes every test run a check that the migration matches the entities.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    clean-disabled: false
+
+savingbuddy:
+  backup:
+    enabled: false
