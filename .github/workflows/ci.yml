@@ -36,7 +36,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: backend-surefire-reports
           path: backend/target/surefire-reports/
@@ -120,7 +120,7 @@ jobs:
           curl -sf http://localhost:8080/ | grep -qi '<div id="root"' || { echo "::error::UI not served"; exit 1; }
           echo "Packaged app serves both the API and the UI."
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: savingbuddy-jar
           path: backend/target/*.jar
