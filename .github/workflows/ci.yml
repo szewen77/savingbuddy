@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes an in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # -DskipFrontend: the frontend job covers the React build, so there is no
+      # reason to compile it again here just to run JUnit.
+      #
+      # This job is the schema guard. Hibernate runs with ddl-auto=validate
+      # against the Flyway-built schema, so an entity changed without a matching
+      # migration fails here rather than on someone's database.
+      - name: Run tests
+        working-directory: backend
+        run: ./mvnw -B --no-transfer-progress test -DskipFrontend
+
+      - name: Publish test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc -b
+
+      - name: Test
+        working-directory: frontend
+        run: npx vitest run
+
+  package:
+    name: Package JAR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The real shipping artifact: frontend-maven-plugin compiles React into the
+      # JAR. This step is what proves `java -jar` would actually serve the app —
+      # the wiring between the two halves is exactly what broke silently before.
+      - name: Build
+        working-directory: backend
+        run: ./mvnw -B --no-transfer-progress clean package -DskipTests
+
+      - name: Verify the UI was packaged into the JAR
+        working-directory: backend
+        run: |
+          JAR=$(ls target/*.jar | grep -v original | head -1)
+          echo "JAR=$PWD/$JAR" >> "$GITHUB_ENV"
+          jar tf "$JAR" \
+            | grep -q 'BOOT-INF/classes/static/index.html' \
+            || { echo "::error::index.html missing from the JAR — the frontend did not get packaged"; exit 1; }
+          echo "UI present in the JAR."
+
+      - name: Smoke test the packaged app
+        run: |
+          java -jar "$JAR" \
+            --spring.profiles.active=demo \
+            --spring.datasource.url='jdbc:h2:mem:ci;MODE=PostgreSQL' \
+            --savingbuddy.backup.enabled=false &
+          # Poll /api/summary, not /api/setup. The web server accepts requests
+          # before the demo seeder (an ApplicationRunner) has finished, so
+          # /api/setup answers 200 with configured:false during that window and
+          # would let the check race ahead of the data.
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/summary || true)
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          test "$code" = "200" || { echo "::error::app did not become ready (last status $code)"; exit 1; }
+          curl -sf http://localhost:8080/ | grep -qi '<div id="root"' || { echo "::error::UI not served"; exit 1; }
+          echo "Packaged app serves both the API and the UI."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: savingbuddy-jar
+          path: backend/target/*.jar
