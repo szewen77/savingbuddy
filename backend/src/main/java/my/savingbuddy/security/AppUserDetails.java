@@ -24,6 +24,24 @@ public class AppUserDetails implements UserDetails {
 
     public Long getId() { return id; }
 
+    /**
+     * Identity is the user id, not the object.
+     *
+     * <p>SessionRegistryImpl keys its principal→sessions map by the principal
+     * object itself. Without these, each login files sessions under a key nothing
+     * can look up again, and "expire this user's other sessions" silently expires
+     * nothing.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof AppUserDetails other && id != null && id.equals(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id == null ? 0 : id.hashCode();
+    }
+
     @Override public String getUsername() { return email; }
     @Override public String getPassword() { return passwordHash; }
     @Override public List<GrantedAuthority> getAuthorities() { return List.of(); }

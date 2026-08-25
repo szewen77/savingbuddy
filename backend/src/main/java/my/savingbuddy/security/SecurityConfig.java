@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,6 +21,9 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -56,8 +60,34 @@ public class SecurityConfig {
                 .anyRequest().permitAll())
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+            .sessionManagement(session -> session
+                // Registered so a password change can expire this user's OTHER
+                // sessions. maximumSessions(-1) keeps concurrent logins allowed —
+                // the registry is for eviction, not for limiting sign-ins.
+                .maximumSessions(-1)
+                .sessionRegistry(sessionRegistry())
+                // The default strategy answers 200 with a prose sentence, which a
+                // JSON client would parse as success. An expired session is
+                // indistinguishable from no session, so say 401 like everything else.
+                .expiredSessionStrategy(event -> {
+                    var res = event.getResponse();
+                    res.setStatus(HttpStatus.UNAUTHORIZED.value());
+                    res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    res.getWriter().write("{\"message\":\"Your session ended. Please sign in again.\",\"errors\":[]}");
+                }))
             .logout(logout -> logout.disable());
         return http.build();
+    }
+
+    @Bean
+    SessionRegistry sessionRegistry() {
+        return new SessionRegistryImpl();
+    }
+
+    /** Required for the registry to learn about destroyed sessions; without it, entries leak. */
+    @Bean
+    HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
     }
 
     @Bean

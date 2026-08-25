@@ -22,6 +22,11 @@ public class CurrentUser {
         return details().getUsername();
     }
 
+    /** The principal object, as the session registry keys it. */
+    public Object principal() {
+        return details();
+    }
+
     private AppUserDetails details() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof AppUserDetails d)) {

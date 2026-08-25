@@ -2,6 +2,7 @@ package my.savingbuddy.web;
 
 import my.savingbuddy.api.Dtos.ErrorResponse;
 import my.savingbuddy.service.AuthService.EmailTakenException;
+import my.savingbuddy.service.AuthService.IncorrectPasswordException;
 import my.savingbuddy.service.NotFoundException;
 import org.springframework.security.core.AuthenticationException;
 import my.savingbuddy.service.SetupService.AlreadyConfiguredException;
@@ -31,6 +32,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse unreadable(Exception ex) {
         return new ErrorResponse("Malformed request", List.of());
+    }
+
+    @ExceptionHandler(IncorrectPasswordException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse incorrectPassword(IncorrectPasswordException ex) {
+        return new ErrorResponse(ex.getMessage(), List.of());
     }
 
     @ExceptionHandler(EmailTakenException.class)

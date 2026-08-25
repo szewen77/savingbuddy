@@ -33,6 +33,31 @@ public class AuthService {
         return new AuthUser(user.getEmail());
     }
 
+    /**
+     * Changes a password after re-verifying the current one.
+     *
+     * <p>Re-verification matters even though the caller is already authenticated:
+     * a session left open on a shared machine would otherwise be enough to take
+     * the account over permanently.
+     */
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = users.findById(userId)
+            .orElseThrow(() -> new NotFoundException("User " + userId + " not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new IncorrectPasswordException("Current password is incorrect");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new IncorrectPasswordException("The new password must be different from the current one");
+        }
+        user.changePassword(passwordEncoder.encode(newPassword));
+    }
+
+    public static class IncorrectPasswordException extends RuntimeException {
+        public IncorrectPasswordException(String m) { super(m); }
+    }
+
     public static class EmailTakenException extends RuntimeException {
         public EmailTakenException(String m) { super(m); }
     }

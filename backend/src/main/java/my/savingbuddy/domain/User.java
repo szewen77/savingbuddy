@@ -27,6 +27,8 @@ public class User {
         this.createdAt = createdAt;
     }
 
+    public void changePassword(String newHash) { this.passwordHash = newHash; }
+
     public Long getId() { return id; }
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }

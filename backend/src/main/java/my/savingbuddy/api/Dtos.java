@@ -213,6 +213,11 @@ public final class Dtos {
 
     public record LoginRequest(@NotBlank String email, @NotBlank String password) {}
 
+    public record ChangePasswordRequest(
+        @NotBlank String currentPassword,
+        @NotBlank @Size(min = 8, max = 72) String newPassword
+    ) {}
+
     // ---- Setup / onboarding ----
 
     public record SetupStatus(boolean configured, String ownerName) {}

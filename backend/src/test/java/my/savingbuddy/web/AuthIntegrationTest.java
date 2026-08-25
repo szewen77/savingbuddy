@@ -81,6 +81,66 @@ class AuthIntegrationTest extends ApiTestBase {
     }
 
     @Test
+    void passwordCanBeChangedAndTheOldOneStopsWorking() throws Exception {
+        MockHttpSession s = register("rotate@example.com", "the-old-password");
+        doPost(s, "/api/auth/password",
+                "{\"currentPassword\":\"the-old-password\",\"newPassword\":\"the-new-password\"}")
+            .andExpect(status().isNoContent());
+
+        // The caller keeps working — no sign-out mid-flow.
+        doGet(s, "/api/auth/me").andExpect(status().isOk());
+
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"rotate@example.com\",\"password\":\"the-old-password\"}"))
+            .andExpect(status().isUnauthorized());
+        login("rotate@example.com", "the-new-password");
+    }
+
+    @Test
+    void changingThePasswordRequiresTheCurrentOne() throws Exception {
+        MockHttpSession s = register("guard@example.com", "the-real-password");
+        doPost(s, "/api/auth/password",
+                "{\"currentPassword\":\"not-the-password\",\"newPassword\":\"a-brand-new-one\"}")
+            .andExpect(status().isBadRequest());
+        // Unchanged: the original still works.
+        login("guard@example.com", "the-real-password");
+    }
+
+    @Test
+    void theNewPasswordMustDifferAndMeetTheLengthFloor() throws Exception {
+        MockHttpSession s = register("rules@example.com", "the-old-password");
+        doPost(s, "/api/auth/password",
+                "{\"currentPassword\":\"the-old-password\",\"newPassword\":\"the-old-password\"}")
+            .andExpect(status().isBadRequest());
+        doPost(s, "/api/auth/password",
+                "{\"currentPassword\":\"the-old-password\",\"newPassword\":\"short\"}")
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void changingThePasswordEvictsTheUsersOtherSessions() throws Exception {
+        register("evict@example.com", "the-old-password");
+        MockHttpSession attacker = login("evict@example.com", "the-old-password");
+        MockHttpSession owner = login("evict@example.com", "the-old-password");
+        doGet(attacker, "/api/auth/me").andExpect(status().isOk());
+
+        doPost(owner, "/api/auth/password",
+                "{\"currentPassword\":\"the-old-password\",\"newPassword\":\"the-new-password\"}")
+            .andExpect(status().isNoContent());
+
+        // The whole point: a stolen session must not survive the rotation.
+        doGet(attacker, "/api/auth/me").andExpect(status().isUnauthorized());
+        doGet(owner, "/api/auth/me").andExpect(status().isOk());
+    }
+
+    @Test
+    void passwordChangeRequiresAuthentication() throws Exception {
+        mvc.perform(post("/api/auth/password").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"currentPassword\":\"a\",\"newPassword\":\"long-enough-pw\"}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void mutationsWithoutACsrfTokenAreRejected() throws Exception {
         MockHttpSession s = register("csrf@example.com", "long-enough-pw");
         mvc.perform(post("/api/transactions").session(s).contentType(MediaType.APPLICATION_JSON)

@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import my.savingbuddy.api.Dtos.AuthUser;
+import my.savingbuddy.api.Dtos.ChangePasswordRequest;
 import my.savingbuddy.api.Dtos.LoginRequest;
 import my.savingbuddy.api.Dtos.RegisterRequest;
 import my.savingbuddy.security.CurrentUser;
@@ -15,6 +16,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
@@ -25,12 +28,15 @@ public class AuthController {
     private final AuthService auth;
     private final AuthenticationManager authenticationManager;
     private final CurrentUser currentUser;
+    private final SessionRegistry sessionRegistry;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
-    public AuthController(AuthService auth, AuthenticationManager authenticationManager, CurrentUser currentUser) {
+    public AuthController(AuthService auth, AuthenticationManager authenticationManager,
+                          CurrentUser currentUser, SessionRegistry sessionRegistry) {
         this.auth = auth;
         this.authenticationManager = authenticationManager;
         this.currentUser = currentUser;
+        this.sessionRegistry = sessionRegistry;
     }
 
     @PostMapping("/register")
@@ -54,8 +60,29 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session != null) session.invalidate();
+        if (session != null) {
+            sessionRegistry.removeSessionInformation(session.getId());
+            session.invalidate();
+        }
         SecurityContextHolder.clearContext();
+    }
+
+    /**
+     * Change the password, then evict every OTHER session this user has.
+     *
+     * <p>Evicting the others is the point: if someone else is riding a stolen
+     * session, changing the password has to end it, or the change is theatre.
+     * The caller's own session survives so they are not signed out mid-flow.
+     */
+    @PostMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@Valid @RequestBody ChangePasswordRequest req, HttpServletRequest request) {
+        auth.changePassword(currentUser.id(), req.currentPassword(), req.newPassword());
+
+        String keep = request.getSession(false) == null ? null : request.getSession(false).getId();
+        for (SessionInformation info : sessionRegistry.getAllSessions(currentUser.principal(), false)) {
+            if (!info.getSessionId().equals(keep)) info.expireNow();
+        }
     }
 
     /** Who am I? 401 (from the security filter) when nobody is logged in. */
@@ -70,12 +97,22 @@ public class AuthController {
             authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email, password));
         // Session fixation defence: a fresh session id once authenticated.
         HttpSession old = request.getSession(false);
-        if (old != null) old.invalidate();
-        request.getSession(true);
+        if (old != null) {
+            sessionRegistry.removeSessionInformation(old.getId());
+            old.invalidate();
+        }
+        HttpSession fresh = request.getSession(true);
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
+
+        // Register explicitly. Spring normally does this via the session
+        // authentication strategy on the form-login filter; this controller
+        // authenticates by hand, so nothing else would record the session and
+        // expiring "all other sessions" on password change would silently be a
+        // no-op against an empty registry.
+        sessionRegistry.registerNewSession(fresh.getId(), authentication.getPrincipal());
     }
 }
