@@ -14,7 +14,6 @@ spring:
     # Tomcat to 127.0.0.1 does not constrain it. To inspect the database, stop the
     # app first and open the file directly.
     url: jdbc:h2:file:${user.home}/.savingbuddy/db/savingbuddy;MODE=PostgreSQL
-    driver-class-name: org.h2.Driver
     username: sa
     password: ""
 
@@ -38,6 +37,31 @@ savingbuddy:
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
   backup:
-    enabled: true
+    # snapshot = the app takes its own H2 file snapshots (local default).
+    # none     = the app takes no backups, and that is a deliberate choice.
+    # A `snapshot` setting against a non-H2 database fails startup rather than
+    # logging a warning nobody reads — believing you have backups when you do
+    # not is worse than knowing you have none.
+    mode: snapshot
     # Snapshots kept in ~/.savingbuddy/backups, oldest pruned beyond this.
     keep: 7
+
+---
+# Deployment against PostgreSQL: --spring.profiles.active=postgres
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/savingbuddy}
+    username: ${DATABASE_USERNAME:savingbuddy}
+    password: ${DATABASE_PASSWORD:}
+server:
+  # A container or load balancer needs a reachable bind. This is only safe
+  # behind HTTPS and a trusted network boundary — see the README.
+  address: 0.0.0.0
+savingbuddy:
+  backup:
+    # Durability belongs to the platform here (managed snapshots, pg_dump, WAL).
+    # Stated explicitly so nothing silently assumes the app is covering it.
+    mode: none

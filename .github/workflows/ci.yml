@@ -106,7 +106,7 @@ jobs:
           java -jar "$JAR" \
             --spring.profiles.active=demo \
             --spring.datasource.url='jdbc:h2:mem:ci;MODE=PostgreSQL' \
-            --savingbuddy.backup.enabled=false &
+            --savingbuddy.backup.mode=none &
           # Anonymous /api/summary must be 401 once the app is up — auth is on.
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/summary || true)

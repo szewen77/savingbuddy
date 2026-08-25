@@ -51,6 +51,19 @@
       <artifactId>h2</artifactId>
       <scope>runtime</scope>
     </dependency>
+    <!-- Postgres is opt-in via the `postgres` profile; H2 stays the default.
+         Both drivers coexist on the classpath and the JDBC URL selects one.
+         flyway-database-postgresql is required because flyway-core 12 bundles
+         only H2 and SQLite — without it startup dies with "Unsupported Database". -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

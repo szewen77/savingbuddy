@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The backup guard. Losing the database and restarting must not destroy the very
@@ -37,7 +38,7 @@ class BackupServiceTest {
     static void fileBackedDatabase(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url",
             () -> "jdbc:h2:file:" + DB_DIR.toAbsolutePath().resolve("savingbuddy") + ";MODE=PostgreSQL");
-        registry.add("savingbuddy.backup.enabled", () -> false); // the runner is driven explicitly below
+        registry.add("savingbuddy.backup.mode", () -> "none"); // the runner is driven explicitly below
     }
 
     @AfterAll
@@ -51,7 +52,7 @@ class BackupServiceTest {
     @Autowired JdbcTemplate jdbc;
 
     private BackupService writingTo(Path dir) {
-        return new BackupService(jdbc, true, 3, dir.toString());
+        return new BackupService(jdbc, BackupService.Mode.SNAPSHOT, 3, dir.toString());
     }
 
     private void configureAPlan() {
@@ -68,6 +69,38 @@ class BackupServiceTest {
         try (var files = Files.list(dir)) {
             return files.count();
         }
+    }
+
+    @Test
+    void snapshotModeRefusesToStartAgainstANonH2Database() {
+        // The false-assurance guard: a Postgres deployment left on the default
+        // mode must fail loudly, not log a warning and run without backups.
+        var jdbcOnPostgres = new JdbcTemplate(jdbc.getDataSource()) {
+            @Override
+            public <T> T execute(org.springframework.jdbc.core.ConnectionCallback<T> action) {
+                @SuppressWarnings("unchecked") T name = (T) "PostgreSQL";
+                return name;
+            }
+        };
+        BackupService svc = new BackupService(jdbcOnPostgres, BackupService.Mode.SNAPSHOT, 3, "/tmp/never");
+        assertThatThrownBy(svc::verifyModeMatchesDatabase)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("BACKUP TO is H2-only")
+            .hasMessageContaining("mode=none");
+    }
+
+    @Test
+    void modeNoneTakesNoSnapshots(@TempDir Path dir) throws IOException {
+        jdbc.update("delete from plan");
+        configureAPlan();
+        new BackupService(jdbc, BackupService.Mode.NONE, 3, dir.toString()).run(null);
+        assertThat(countIn(dir)).isZero();
+    }
+
+    @Test
+    void snapshotModeAcceptsH2() {
+        // The same guard must not fire on the local default.
+        new BackupService(jdbc, BackupService.Mode.SNAPSHOT, 3, "/tmp/never").verifyModeMatchesDatabase();
     }
 
     @Test

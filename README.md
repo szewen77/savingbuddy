@@ -38,7 +38,8 @@ a public bind) are deliberately separate decisions.
 | [Spring Security](https://spring.io/projects/spring-security) | 7 | Session auth, BCrypt password hashing, CSRF (SPA cookie recipe) |
 | [Hibernate](https://hibernate.org) | 7.4 (via Spring Data JPA) | ORM, set to `validate` — it never rewrites the schema |
 | [Flyway](https://www.red-gate.com/products/flyway/) | 12.4 | Owns the schema. Migrations in `backend/src/main/resources/db/migration` |
-| [H2](https://h2database.com) | 2.4.240 | Embedded database, one file at `~/.savingbuddy/db/` |
+| [H2](https://h2database.com) | 2.4.240 | Embedded database, one file at `~/.savingbuddy/db/` — the default |
+| [PostgreSQL](https://www.postgresql.org) | 17 (driver 42.7) | Optional deployment target, via the `postgres` profile |
 | [Maven](https://maven.apache.org) | wrapper included | Build. `frontend-maven-plugin` compiles the React app into the JAR |
 | [JUnit Jupiter](https://junit.org) + MockMvc | 6.0 | Unit and full-stack API tests |
 
@@ -127,6 +128,35 @@ npm test
 ```
 
 Runs both suites — JUnit against the API, Vitest against the UI.
+
+## Running on PostgreSQL
+
+H2 is the zero-config default and nothing about it changed. PostgreSQL is opt-in:
+
+```bash
+java -jar backend/target/savingbuddy-api-0.1.0-SNAPSHOT.jar --spring.profiles.active=postgres
+```
+
+Configured by environment variable — `DATABASE_URL`, `DATABASE_USERNAME`,
+`DATABASE_PASSWORD`. The same Flyway migrations build the schema on either
+engine; no dialect is pinned, because Hibernate resolves it from JDBC metadata
+and pinning one is how you get a mismatch later.
+
+**Backups are a deliberate, explicit choice, not a default.** `BACKUP TO` is
+H2-only, so `savingbuddy.backup.mode` names who owns durability:
+
+| mode | meaning |
+| ---- | ------- |
+| `snapshot` | The app writes its own H2 snapshots. **Requires H2** — startup fails against anything else. |
+| `none` | The app takes no backups. Something else must (managed snapshots, `pg_dump`, WAL archiving). |
+
+The `postgres` profile sets `mode: none`. Leaving it on `snapshot` refuses to
+start rather than logging a warning and running for months without backups —
+believing you have backups when you do not is worse than knowing you have none.
+
+Deploying also means `server.address: 0.0.0.0`, which the `postgres` profile
+sets. **That is only safe behind HTTPS and a trusted network boundary.** Session
+cookies are not marked `Secure` yet, so plain HTTP would expose them.
 
 ## CI
 

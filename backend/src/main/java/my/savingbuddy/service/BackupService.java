@@ -1,5 +1,6 @@
 package my.savingbuddy.service;
 
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,12 @@ import java.util.List;
  * database and restarting would write an empty backup, and because old snapshots
  * are pruned, restarting a few more times would evict every good one — turning a
  * recoverable accident into permanent loss at exactly the worst moment.
+ *
+ * <p>{@code BACKUP TO} is H2-only. Rather than let it fail into a warning on
+ * PostgreSQL — leaving a deployment convinced it has backups it does not have —
+ * mode {@code snapshot} refuses to start against any other database. A Postgres
+ * deployment must say {@code mode: none}, making "the platform owns durability"
+ * an explicit statement rather than an accident.
  */
 @Component
 public class BackupService implements ApplicationRunner {
@@ -35,24 +42,49 @@ public class BackupService implements ApplicationRunner {
     private static final String PREFIX = "savingbuddy-";
     private static final String SUFFIX = ".zip";
 
+    /** How this deployment gets its durability. */
+    public enum Mode {
+        /** The app writes its own H2 file snapshots. Requires H2. */
+        SNAPSHOT,
+        /** The app takes no backups — something else owns durability. */
+        NONE
+    }
+
     private final JdbcTemplate jdbc;
-    private final boolean enabled;
+    private final Mode mode;
     private final int keep;
     private final Path directory;
 
     public BackupService(JdbcTemplate jdbc,
-                         @Value("${savingbuddy.backup.enabled:true}") boolean enabled,
+                         @Value("${savingbuddy.backup.mode:snapshot}") Mode mode,
                          @Value("${savingbuddy.backup.keep:7}") int keep,
                          @Value("${savingbuddy.backup.dir:${user.home}/.savingbuddy/backups}") String dir) {
         this.jdbc = jdbc;
-        this.enabled = enabled;
+        this.mode = mode;
         this.keep = Math.max(1, keep);
         this.directory = Path.of(dir);
     }
 
+    /**
+     * Fails startup when snapshots are requested against a database that cannot
+     * produce them. Checked against the live connection, not the classpath: H2
+     * stays on the classpath in a Postgres deployment because tests need it.
+     */
+    @PostConstruct
+    void verifyModeMatchesDatabase() {
+        if (mode != Mode.SNAPSHOT) return;
+        String product = jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<String>) c ->
+            c.getMetaData().getDatabaseProductName());
+        if (!"H2".equalsIgnoreCase(product)) {
+            throw new IllegalStateException(
+                "savingbuddy.backup.mode=snapshot needs H2 (BACKUP TO is H2-only), but this is " + product
+                    + ". Set savingbuddy.backup.mode=none and make sure something else backs this database up.");
+        }
+    }
+
     @Override
     public void run(ApplicationArguments args) {
-        if (!enabled) return;
+        if (mode == Mode.NONE) return;
         try {
             if (!hasSomethingWorthKeeping()) {
                 log.debug("Nothing configured yet — skipping the startup backup.");
@@ -79,7 +111,11 @@ public class BackupService implements ApplicationRunner {
     public Path snapshot() throws IOException {
         Files.createDirectories(directory);
         Path target = directory.resolve(PREFIX + LocalDateTime.now().format(STAMP) + SUFFIX);
-        jdbc.execute("BACKUP TO '" + target.toAbsolutePath() + "'");
+        // BACKUP TO takes no bind parameters, so the path is inlined. Escape the
+        // quote character: a home directory containing an apostrophe would
+        // otherwise produce invalid SQL and silently disable every backup.
+        String literal = target.toAbsolutePath().toString().replace("'", "''");
+        jdbc.execute("BACKUP TO '" + literal + "'");
         prune();
         log.info("Database backed up to {}", target);
         return target;
