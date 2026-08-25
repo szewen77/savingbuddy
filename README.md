@@ -53,6 +53,11 @@ a public bind) are deliberately separate decisions.
 - **An injected `Clock`**, so "today" is a dependency. Tests pin it to a fixed
   date and assert on exact figures instead of tolerating drift.
 - **The API binds `127.0.0.1`** until it is deliberately deployed behind HTTPS.
+- **Multi-tenancy is pinned by `IsolationIntegrationTest`** — two fully populated
+  users, every endpoint, plus attempts by one to read, edit or delete the other's
+  data. Both users have rows in *every* user-owned table on purpose: an earlier
+  version seeded none, so five repositories were asserted against empty tables
+  and would have kept passing if their scoping was removed.
 - **Every repository finder requires a userId** — the unscoped variants were
   deleted, not deprecated, so an unscoped query is a compile error rather than a
   cross-user data leak. An integration test registers two users and checks every

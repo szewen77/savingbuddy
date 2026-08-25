@@ -108,6 +108,10 @@ public abstract class ApiTestBase {
         return mvc.perform(get(url).session(as));
     }
 
+    protected ResultActions doGet(MockHttpSession as, String url, String param, String value) throws Exception {
+        return mvc.perform(get(url).param(param, value).session(as));
+    }
+
     protected ResultActions doPost(MockHttpSession as, String url, String json) throws Exception {
         return mvc.perform(post(url).session(as).with(csrf())
             .contentType(MediaType.APPLICATION_JSON).content(json));
