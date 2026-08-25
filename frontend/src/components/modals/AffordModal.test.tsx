@@ -25,6 +25,9 @@ const preview = (over: boolean, delayMonths = 1, stalls = false): AffordPreview 
   waitPlan: { weeks: 3, weekly: 133 },
 })
 
+/** A user with no savings goal — the state a fresh account is permanently in. */
+const goalless = (): AffordPreview => ({ ...preview(false), goal: null })
+
 const fetchMock = vi.fn()
 
 beforeEach(() => {
@@ -87,5 +90,43 @@ describe('AffordModal', () => {
     await userEvent.clear(input)
     await userEvent.type(input, '1a2.3.4')
     expect(input).toHaveValue('12.34')
+  })
+
+  it('answers the question for a user with no goal, instead of failing', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => goalless() })
+    renderApp(<><AffordModal /><Toast /></>)
+
+    // The verdict and the money figures still land...
+    expect(await screen.findByText(/You can afford this — it fits inside what is left/)).toBeInTheDocument()
+    expect(screen.getByText('No goal to slow down')).toBeInTheDocument()
+    // ...and nothing pretends a goal was delayed.
+    expect(screen.queryByText(/completion/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/later than planned/)).not.toBeInTheDocument()
+    // Copy that mentions a goal must not survive when there is none.
+    expect(screen.queryByText(/with the goal untouched/)).not.toBeInTheDocument()
+    expect(screen.getByText(/no goals yet/)).toBeInTheDocument()
+  })
+
+  it('buying with no goal does not crash on the missing goal', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url === '/api/afford/buy'
+        ? Promise.resolve({ ok: true, status: 201, json: async () => ({
+            transaction: { id: 9, name: 'One-off purchase', category: 'Other', kind: 'SPENDING',
+              amount: 399, occurredAt: '2026-08-22T10:00:00', accountName: 'TnG', note: null },
+            safeToSpend: 1027, daily: 102.7, goal: null,
+          }) })
+        : Promise.resolve({ ok: true, status: 200, json: async () => goalless() }))
+
+    renderApp(<><AffordModal /><Toast /></>)
+    await screen.findByText(/You can afford this/)
+    await userEvent.click(screen.getByRole('button', { name: 'Buy Anyway' }))
+
+    expect(await screen.findByText(/Recorded/)).toBeInTheDocument()
+  })
+
+  it('says so when the preview itself fails, rather than showing Checking forever', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({ message: 'boom', errors: [] }) })
+    renderApp(<><AffordModal /><Toast /></>)
+    expect(await screen.findByText(/Couldn't work out the impact just now/)).toBeInTheDocument()
   })
 })

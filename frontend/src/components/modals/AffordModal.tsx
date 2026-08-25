@@ -9,6 +9,7 @@ import { CloseButton, Modal } from '@/components/ui/Modal'
 function headline(p: AffordPreview | undefined, amount: number): string {
   if (!p || amount <= 0) return "Type what it costs and I'll show what it does to your month."
   if (p.verdict === 'NO') return `This is ${rm(p.shortfall)} more than you have left — it would eat into your savings.`
+  if (!p.goal) return 'You can afford this — it fits inside what is left this month.'
   if (p.goal.stalls) return `You can afford this — but it would stop your ${p.goal.name} progressing.`
   if (p.goal.delayMonths > 0) return `You can afford this — but it will slow down your ${p.goal.name} goal.`
   return 'You can afford this without touching your goals.'
@@ -33,7 +34,7 @@ export function AffordModal() {
   const { closeModal, showToast } = useUi()
   const [pad, setPad] = useState('399')
   const amount = parseAmount(pad)
-  const { data: p, isFetching } = useAffordPreview(amount)
+  const { data: p, isFetching, isError: previewFailed } = useAffordPreview(amount)
   const buy = useBuyAnyway()
   const wait = useWaitAndSave()
 
@@ -46,9 +47,11 @@ export function AffordModal() {
     buy.mutate(amount, {
       onSuccess: (res) => {
         closeModal()
-        const goalNote = res.goal.status === 'ON_HOLD'
-          ? `${res.goal.name} on hold`
-          : `${res.goal.name} now ${monthShort(res.goal.effectiveMonth)}`
+        const goalNote = !res.goal
+          ? 'Recorded'
+          : res.goal.status === 'ON_HOLD'
+            ? `${res.goal.name} on hold`
+            : `${res.goal.name} now ${monthShort(res.goal.effectiveMonth)}`
         showToast(`Bought. Safe to Spend ${rm(res.safeToSpend)} · ${goalNote}`)
       },
     })
@@ -65,7 +68,7 @@ export function AffordModal() {
   }
 
   const goalDate = p && !stale
-    ? p.goal.stalls ? 'Stalled' : p.goal.newMonth ? monthShort(p.goal.newMonth) : '—'
+    ? !p.goal ? '—' : p.goal.stalls ? 'Stalled' : p.goal.newMonth ? monthShort(p.goal.newMonth) : '—'
     : '—'
 
   return (
@@ -89,7 +92,7 @@ export function AffordModal() {
 
           <div className="text-[12px] leading-[1.5] text-cream/55">
             {p && !stale && amount > 0
-              ? `Wait & Save sets aside ${rm(p.waitPlan.weekly)} a week — yours in ${p.waitPlan.weeks} weeks with the goal untouched.`
+              ? `Wait & Save sets aside ${rm(p.waitPlan.weekly)} a week — yours in ${p.waitPlan.weeks} weeks${p.goal ? ' with the goal untouched' : ''}.`
               : 'Wait & Save spreads the cost across a few weeks instead.'}
           </div>
         </div>
@@ -103,7 +106,14 @@ export function AffordModal() {
           <div className="card rounded-[20px] px-5 py-1">
             <ImpactRow
               label="Monthly savings"
-              sub={p ? `target ${rm(p.savingsTarget)}` : 'target —'}
+              sub={
+                !p ? 'target —'
+                  // With no goals, "saved" is 0 by definition (it is the sum of goal
+                  // contributions), so RM0 → RM0 against a target would read as
+                  // "no impact" when it means "nothing is being saved at all".
+                  : !p.goal ? `${rm(p.savingsTarget)} target, no goals yet`
+                  : `target ${rm(p.savingsTarget)}`
+              }
               before={p ? rm(p.savedBefore) : '—'}
               after={p && !stale ? rm(p.savedAfter) : '—'}
               dim={amount <= 0}
@@ -116,32 +126,41 @@ export function AffordModal() {
               dim={amount <= 0}
             />
 
+            {p && !p.goal ? (
+              <div className="py-3.5">
+                <div className="text-[13px] font-medium">No goal to slow down</div>
+                <div className="mt-1 text-[11.5px] leading-[1.5] text-ink/50">
+                  You have no savings goal set, so nothing gets pushed back — this only
+                  changes what is left to spend this month.
+                </div>
+              </div>
+            ) : (
             <div className="flex flex-col gap-2.5 py-3.5">
               <div className="flex items-center gap-3.5">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-medium">{p ? `${p.goal.name} completion` : 'Goal completion'}</div>
-                  <div className="text-[11px] text-ink/45">{p ? `${rm(p.goal.saved)} of ${rm(p.goal.target)}` : ''}</div>
+                  <div className="text-[13px] font-medium">{p?.goal ? `${p.goal.name} completion` : 'Goal completion'}</div>
+                  <div className="text-[11px] text-ink/45">{p?.goal ? `${rm(p.goal.saved)} of ${rm(p.goal.target)}` : ''}</div>
                 </div>
                 <div className="flex flex-none items-baseline gap-[9px]">
-                  <span className="text-[13px] text-ink/38 line-through">{p ? monthShort(p.goal.currentMonth) : '—'}</span>
+                  <span className="text-[13px] text-ink/38 line-through">{p?.goal ? monthShort(p.goal.currentMonth) : '—'}</span>
                   <span className={`text-[15px] font-semibold ${amount > 0 ? 'text-clay' : 'text-ink/40'}`}>{goalDate}</span>
                 </div>
               </div>
 
               <div className="relative h-2 overflow-hidden rounded-full bg-mist">
-                <div className="absolute inset-y-0 left-0 rounded-full bg-forest" style={{ width: `${(p?.goal.progress ?? 0) * 100}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded-full bg-forest" style={{ width: `${(p?.goal?.progress ?? 0) * 100}%` }} />
                 <div
                   className="absolute inset-y-0 transition-[width] duration-300"
                   style={{
-                    left: `${(p?.goal.progress ?? 0) * 100}%`,
-                    width: p && !stale ? `${p.goal.stalls ? 30 : Math.min(30, p.goal.delayMonths * 6)}%` : '0%',
+                    left: `${(p?.goal?.progress ?? 0) * 100}%`,
+                    width: p?.goal && !stale ? `${p.goal.stalls ? 30 : Math.min(30, p.goal.delayMonths * 6)}%` : '0%',
                     background: 'repeating-linear-gradient(135deg, var(--color-clay-soft) 0 3px, var(--color-mist) 3px 6px)',
                   }}
                 />
               </div>
 
               <div className="text-[11.5px] text-ink/50">
-                {!p || stale || amount <= 0
+                {!p || !p.goal || stale || amount <= 0
                   ? 'No change to your goal yet.'
                   : p.goal.stalls
                     ? 'This would consume everything still owed to the goal — it stops progressing.'
@@ -150,9 +169,16 @@ export function AffordModal() {
                       : 'No change to your goal.'}
               </div>
             </div>
+            )}
           </div>
 
           <div className="flex-1" />
+
+          {previewFailed && (
+            <div className="text-[12.5px] text-clay">
+              Couldn't work out the impact just now. Your figures are unchanged.
+            </div>
+          )}
 
           {(buy.isError || wait.isError) && (
             <div className="text-[12.5px] text-clay">Couldn't complete that — please try again.</div>

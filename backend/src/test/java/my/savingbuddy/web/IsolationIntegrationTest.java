@@ -89,12 +89,29 @@ class IsolationIntegrationTest extends ApiTestBase {
     @Test
     void insightsAndAffordAreScoped() throws Exception {
         doGet(alice, "/api/insights").andExpect(status().isOk());
-        // Known product gap surfaced by multi-user testing: the affordability
-        // preview requires a flexible goal, and a fresh user has none — the demo
-        // data always hid this. Until the preview degrades gracefully, a
-        // goal-less user gets a scoped 404, never another user's goal.
+        // A user with no goals still gets a real answer — the goal-delay part is
+        // simply absent rather than 404-ing the whole request. Bob has no goals.
         doPost(bob, "/api/afford/preview", "{\"amount\":100}")
-            .andExpect(status().isNotFound());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.safeBefore").value(955.00))
+            .andExpect(jsonPath("$.safeAfter").value(855.00))
+            .andExpect(jsonPath("$.verdict").value("YES"))
+            .andExpect(jsonPath("$.goal").doesNotExist());
+    }
+
+    @Test
+    void aGoalLessUserCanStillBuyAndWait() throws Exception {
+        // buy() used to 404 before recording anything, so "Buy Anyway" was dead
+        // for any user without goals — a permanent state, since nothing creates goals.
+        doPost(bob, "/api/afford/buy", "{\"amount\":20}")
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.transaction.amount").value(20.00))
+            .andExpect(jsonPath("$.goal").doesNotExist())
+            .andExpect(jsonPath("$.safeToSpend").value(935.00));
+
+        doPost(bob, "/api/afford/wait", "{\"amount\":60}")
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.weeks").value(3));
     }
 
     @Test

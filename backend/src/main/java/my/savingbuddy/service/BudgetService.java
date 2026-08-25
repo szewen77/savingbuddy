@@ -14,6 +14,7 @@ import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.Locale;
 
 /**
@@ -94,12 +95,20 @@ public class BudgetService {
     }
 
     /** The goal that absorbs a purchase: the non-priority goal taking the largest monthly contribution. */
-    public Goal flexibleGoal(Long userId) {
-        return goals.findAllByUserIdOrderBySortOrderAsc(userId).stream()
+    /**
+     * The goal a purchase is traded off against, if there is one.
+     *
+     * <p>Empty is a normal state, not an error: a user may have no goals at all,
+     * or only priority ones. "Can I afford this" is still answerable without a
+     * goal — there is simply no delay to report — so callers must handle empty
+     * rather than treating it as not-found.
+     */
+    public Optional<Goal> flexibleGoal(Long userId) {
+        List<Goal> all = goals.findAllByUserIdOrderBySortOrderAsc(userId);
+        return all.stream()
             .filter(g -> !g.isPriority() && !g.isOnHold())
             .max((a, b) -> a.getMonthly().compareTo(b.getMonthly()))
-            .or(() -> goals.findAllByUserIdOrderBySortOrderAsc(userId).stream().filter(g -> !g.isPriority()).findFirst())
-            .orElseThrow(() -> new NotFoundException("No flexible goal to trade off against"));
+            .or(() -> all.stream().filter(g -> !g.isPriority()).findFirst());
     }
 
     public SummaryResponse summary(Long userId) {

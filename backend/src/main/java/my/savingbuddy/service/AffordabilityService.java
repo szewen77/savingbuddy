@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Optional;
 
 /**
  * "Can I afford this?" — shows what a purchase does to the month before it happens,
@@ -51,12 +52,15 @@ public class AffordabilityService {
         BigDecimal dailyBefore = Money.divide(safeBefore, days);
         BigDecimal dailyAfter = Money.divide(safeAfter, days);
 
-        Goal goal = budget.flexibleGoal(userId);
-        Delay delay = delayFor(goal, amount);
-        GoalImpact impact = new GoalImpact(goal.getId(), goal.getName(), Money.scale(goal.getSaved()), Money.scale(goal.getTarget()),
-            Money.ratio(goal.getSaved(), goal.getTarget()), goal.effectiveTargetMonth().toString(),
-            delay.stalls() ? null : goal.effectiveTargetMonth().plusMonths(delay.months()).toString(),
-            delay.months(), delay.stalls());
+        // Null when the user has no goal to trade off against — the verdict and
+        // every safe-to-spend figure above stay meaningful without one.
+        GoalImpact impact = budget.flexibleGoal(userId).map(goal -> {
+            Delay delay = delayFor(goal, amount);
+            return new GoalImpact(goal.getId(), goal.getName(), Money.scale(goal.getSaved()), Money.scale(goal.getTarget()),
+                Money.ratio(goal.getSaved(), goal.getTarget()), goal.effectiveTargetMonth().toString(),
+                delay.stalls() ? null : goal.effectiveTargetMonth().plusMonths(delay.months()).toString(),
+                delay.months(), delay.stalls());
+        }).orElse(null);
 
         WaitPlan wait = new WaitPlan(WAIT_WEEKS, Money.divide(amount, WAIT_WEEKS));
 
@@ -67,12 +71,20 @@ public class AffordabilityService {
     @Transactional
     public BuyResponse buy(Long userId, BigDecimal rawAmount) {
         BigDecimal amount = Money.scale(rawAmount);
-        Goal goal = budget.flexibleGoal(userId);
-        Delay delay = delayFor(goal, amount);
+        Optional<Goal> flexible = budget.flexibleGoal(userId);
+
         Transaction t = transactions.recordPurchase(userId, amount);
-        goal.delayBy(delay.stalls() ? goal.delayRoom() : delay.months());
+
+        // With no goal there is nothing to push back — the purchase is still
+        // recorded and the spending figures still move.
+        GoalDto goalDto = flexible.map(goal -> {
+            Delay delay = delayFor(goal, amount);
+            goal.delayBy(delay.stalls() ? goal.delayRoom() : delay.months());
+            return budget.toDto(goal, clock.currentMonth());
+        }).orElse(null);
+
         BigDecimal safe = budget.safeToSpend(userId);
-        return new BuyResponse(BudgetService.toDto(t), safe, budget.dailyAllowance(safe), budget.toDto(goal, clock.currentMonth()));
+        return new BuyResponse(BudgetService.toDto(t), safe, budget.dailyAllowance(safe), goalDto);
     }
 
     @Transactional

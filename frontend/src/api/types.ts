@@ -139,11 +139,12 @@ export interface AffordPreview {
   dailyBefore: number
   dailyAfter: number
   daysRemaining: number
-  goal: GoalImpact
+  /** Null when the user has no goal to trade off against. */
+  goal: GoalImpact | null
   waitPlan: { weeks: number; weekly: number }
 }
 
-export interface BuyResponse { transaction: Transaction; safeToSpend: number; daily: number; goal: Goal }
+export interface BuyResponse { transaction: Transaction; safeToSpend: number; daily: number; goal: Goal | null }
 export interface SavingPlan { id: number; totalAmount: number; weeks: number; weeklyAmount: number; createdAt: string }
 
 export interface MonthPoint { month: string; label: string; saved: number; income: number; current: boolean }
