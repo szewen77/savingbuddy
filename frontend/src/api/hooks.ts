@@ -12,6 +12,9 @@ export const keys = {
   preview: (amount: number) => ['afford', 'preview', amount] as const,
 }
 
+export const useRegistrationStatus = () =>
+  useQuery({ queryKey: ['registration'], queryFn: api.registrationStatus, staleTime: Infinity, retry: false })
+
 export const useMe = () =>
   useQuery({ queryKey: keys.me, queryFn: api.me, staleTime: Infinity, retry: false })
 
@@ -88,7 +91,8 @@ export function useLogin() {
 export function useRegister() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) => api.register(email, password),
+    mutationFn: ({ email, password, signupCode }: { email: string; password: string; signupCode?: string }) =>
+      api.register(email, password, signupCode),
     onSuccess: () => qc.invalidateQueries(),
   })
 }

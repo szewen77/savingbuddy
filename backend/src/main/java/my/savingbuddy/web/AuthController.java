@@ -8,7 +8,9 @@ import my.savingbuddy.api.Dtos.AuthUser;
 import my.savingbuddy.api.Dtos.ChangePasswordRequest;
 import my.savingbuddy.api.Dtos.LoginRequest;
 import my.savingbuddy.api.Dtos.RegisterRequest;
+import my.savingbuddy.api.Dtos.RegistrationStatus;
 import my.savingbuddy.security.CurrentUser;
+import my.savingbuddy.security.RegistrationPolicy;
 import my.savingbuddy.security.LoginRateLimiter;
 import my.savingbuddy.service.AuthService;
 import org.springframework.http.HttpStatus;
@@ -31,23 +33,35 @@ public class AuthController {
     private final CurrentUser currentUser;
     private final SessionRegistry sessionRegistry;
     private final LoginRateLimiter rateLimiter;
+    private final RegistrationPolicy registrationPolicy;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
     public AuthController(AuthService auth, AuthenticationManager authenticationManager,
                           CurrentUser currentUser, SessionRegistry sessionRegistry,
-                          LoginRateLimiter rateLimiter) {
+                          LoginRateLimiter rateLimiter, RegistrationPolicy registrationPolicy) {
         this.auth = auth;
         this.authenticationManager = authenticationManager;
         this.currentUser = currentUser;
         this.sessionRegistry = sessionRegistry;
         this.rateLimiter = rateLimiter;
+        this.registrationPolicy = registrationPolicy;
+    }
+
+    /**
+     * Whether this instance accepts new accounts, so the sign-in screen can ask
+     * for a code or hide the link. Not sensitive: one registration attempt
+     * reveals the same thing.
+     */
+    @GetMapping("/registration")
+    public RegistrationStatus registrationStatus() {
+        return new RegistrationStatus(registrationPolicy.mode().name().toLowerCase());
     }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthUser register(@Valid @RequestBody RegisterRequest req,
                              HttpServletRequest request, HttpServletResponse response) {
-        AuthUser created = auth.register(req.email(), req.password());
+        AuthUser created = auth.register(req.email(), req.password(), req.signupCode());
         // Registering is also logging in — nobody wants to type the password twice.
         establishSession(req.email().trim().toLowerCase(), req.password(), request, response);
         return created;

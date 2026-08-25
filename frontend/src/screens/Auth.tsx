@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLogin, useRegister } from '@/api/hooks'
+import { useLogin, useRegister, useRegistrationStatus } from '@/api/hooks'
 import { HttpError } from '@/api/client'
 import { Card } from '@/components/ui/Card'
 import { Field, inputClass } from '@/components/ui/Form'
@@ -11,16 +11,24 @@ export function Auth() {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [signupCode, setSignupCode] = useState('')
+  const registration = useRegistrationStatus()
   const login = useLogin()
   const register = useRegister()
   const active = mode === 'login' ? login : register
 
-  const canSubmit = email.trim().length > 3 && password.length >= (mode === 'register' ? 8 : 1) && !active.isPending
+  const needsCode = registration.data?.mode === 'code'
+  const signupClosed = registration.data?.mode === 'closed'
+  const canSubmit =
+    email.trim().length > 3 &&
+    password.length >= (mode === 'register' ? 8 : 1) &&
+    (mode === 'login' || !needsCode || signupCode.trim().length > 0) &&
+    !active.isPending
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!canSubmit) return
-    active.mutate({ email: email.trim(), password })
+    active.mutate(mode === 'register' ? { email: email.trim(), password, signupCode: signupCode.trim() } : { email: email.trim(), password })
   }
 
   const serverError = active.error instanceof HttpError ? active.error.body?.message : null
@@ -63,6 +71,17 @@ export function Auth() {
               />
             </Field>
 
+            {mode === 'register' && needsCode && (
+              <Field label="Signup code" hint="This instance only accepts invited people.">
+                <input
+                  value={signupCode}
+                  onChange={(e) => setSignupCode(e.target.value)}
+                  className={inputClass}
+                  autoComplete="off"
+                />
+              </Field>
+            )}
+
             {serverError && <div className="text-[12.5px] text-clay">{serverError}</div>}
 
             <button
@@ -77,13 +96,15 @@ export function Auth() {
           </form>
         </Card>
 
-        <button
-          type="button"
-          onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); login.reset(); register.reset() }}
-          className="text-center text-[12.5px] font-semibold text-forest hover:underline"
-        >
-          {mode === 'login' ? "New here? Create an account" : 'Already have an account? Sign in'}
-        </button>
+        {!signupClosed && (
+          <button
+            type="button"
+            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); login.reset(); register.reset() }}
+            className="text-center text-[12.5px] font-semibold text-forest hover:underline"
+          >
+            {mode === 'login' ? 'New here? Create an account' : 'Already have an account? Sign in'}
+          </button>
+        )}
 
         <p className="text-center text-[11.5px] text-ink/40">
           Your data belongs to your account and is never shown to anyone else.

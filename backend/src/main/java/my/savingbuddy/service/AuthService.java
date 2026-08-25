@@ -3,6 +3,7 @@ package my.savingbuddy.service;
 import my.savingbuddy.api.Dtos.AuthUser;
 import my.savingbuddy.domain.User;
 import my.savingbuddy.repository.UserRepository;
+import my.savingbuddy.security.RegistrationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,15 +17,22 @@ public class AuthService {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
+    private final RegistrationPolicy registrationPolicy;
 
-    public AuthService(UserRepository users, PasswordEncoder passwordEncoder, Clock clock) {
+    public AuthService(UserRepository users, PasswordEncoder passwordEncoder, Clock clock,
+                       RegistrationPolicy registrationPolicy) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
+        this.registrationPolicy = registrationPolicy;
     }
 
     @Transactional
-    public AuthUser register(String email, String rawPassword) {
+    public AuthUser register(String email, String rawPassword, String signupCode) {
+        // Checked before any other work, and the signature carries the code so
+        // an ungated call path cannot compile.
+        registrationPolicy.check(signupCode);
+
         String normalised = email.trim().toLowerCase();
         if (users.existsByEmailIgnoreCase(normalised)) {
             throw new EmailTakenException("An account with that email already exists");

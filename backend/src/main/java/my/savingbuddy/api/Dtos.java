@@ -210,8 +210,15 @@ public final class Dtos {
 
     public record RegisterRequest(
         @NotBlank @jakarta.validation.constraints.Email @Size(max = 255) String email,
-        @NotBlank @Size(min = 8, max = 72) String password
-    ) {}
+        @NotBlank @Size(min = 8, max = 72) String password,
+        @Size(max = 200) String signupCode
+    ) {
+        /** Redacted: the generated record toString would print the password and the code. */
+        @Override
+        public String toString() { return "RegisterRequest[email=" + email + ", password=***, signupCode=***]"; }
+    }
+
+    public record RegistrationStatus(String mode) {}
 
     /** Bounded deliberately: the email becomes a rate-limiter key, so an unbounded
      *  value would let an unauthenticated caller drive memory use. */

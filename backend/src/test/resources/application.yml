@@ -16,3 +16,7 @@ spring:
 savingbuddy:
   backup:
     mode: none
+  # Tests register users freely; the gate itself is covered by its own suite,
+  # which sets the mode it needs per class.
+  registration:
+    mode: open

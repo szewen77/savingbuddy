@@ -2,6 +2,7 @@ package my.savingbuddy.web;
 
 import my.savingbuddy.api.Dtos.ErrorResponse;
 import my.savingbuddy.security.LoginRateLimiter.TooManyLoginAttemptsException;
+import my.savingbuddy.security.RegistrationPolicy.RegistrationNotAllowedException;
 import my.savingbuddy.service.AuthService.EmailTakenException;
 import my.savingbuddy.service.AuthService.IncorrectPasswordException;
 import my.savingbuddy.service.NotFoundException;
@@ -46,6 +47,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IncorrectPasswordException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse incorrectPassword(IncorrectPasswordException ex) {
+        return new ErrorResponse(ex.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(RegistrationNotAllowedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse registrationNotAllowed(RegistrationNotAllowedException ex) {
         return new ErrorResponse(ex.getMessage(), List.of());
     }
 

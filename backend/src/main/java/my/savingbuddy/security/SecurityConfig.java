@@ -62,7 +62,9 @@ public class SecurityConfig {
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                // /registration is readable anonymously: a signed-out visitor is exactly
+                // who needs it, to know whether to show a code field or hide sign-up.
+                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/registration").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll())
             .exceptionHandling(ex -> ex

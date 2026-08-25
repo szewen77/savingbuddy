@@ -163,6 +163,9 @@ export interface Insights {
 
 export interface AuthUser { email: string }
 
+export type RegistrationMode = 'open' | 'code' | 'closed'
+export interface RegistrationStatus { mode: RegistrationMode }
+
 export interface SetupStatus { configured: boolean; ownerName: string | null }
 
 export interface SetupAccount {

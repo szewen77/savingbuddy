@@ -1,6 +1,6 @@
 import type {
   Activity, AddExpenseRequest, AddExpenseResponse, AffordPreview, ApiError, AuthUser, BuyResponse,
-  Goal, GoalRequest, Insights, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
+  Goal, GoalRequest, Insights, RegistrationStatus, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
 } from './types'
 
 export class HttpError extends Error {
@@ -38,8 +38,10 @@ const del = (): RequestInit => ({ method: 'DELETE' })
 
 export const api = {
   me: () => request<AuthUser>('/api/auth/me'),
+  registrationStatus: () => request<RegistrationStatus>('/api/auth/registration'),
   login: (email: string, password: string) => request<AuthUser>('/api/auth/login', json({ email, password })),
-  register: (email: string, password: string) => request<AuthUser>('/api/auth/register', json({ email, password })),
+  register: (email: string, password: string, signupCode?: string) =>
+    request<AuthUser>('/api/auth/register', json({ email, password, signupCode })),
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   setupStatus: () => request<SetupStatus>('/api/setup'),
   configure: (body: SetupRequest) => request<SetupStatus>('/api/setup', json(body)),

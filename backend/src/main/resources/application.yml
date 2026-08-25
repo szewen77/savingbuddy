@@ -53,6 +53,15 @@ savingbuddy:
   secure-cookies: ${SECURE_COOKIES:false}
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  registration:
+    # open   — anyone may create an account. Safe here and only here, because
+    #          this profile binds 127.0.0.1: there is no "anyone who finds the URL".
+    # code   — a shared signup code is required.
+    # closed — no new accounts.
+    # An ABSENT mode means closed, not open. An unset gate must never mean an open door.
+    mode: ${REGISTRATION_MODE:open}
+    # Never write a literal here — the deployment supplies REGISTRATION_CODE.
+    code: ${REGISTRATION_CODE:}
   login-rate-limit:
     # A self-healing window, not a lockout: an account must never be disableable
     # by someone who merely knows its email address.
@@ -95,6 +104,10 @@ savingbuddy:
   # A deployment is reachable over a network, so cookies must be HTTPS-only.
   # Overridable for a deployment terminating TLS elsewhere, but the default is safe.
   secure-cookies: ${SECURE_COOKIES:true}
+  registration:
+    # The profile that makes the app reachable is the profile that closes
+    # registration. Requires REGISTRATION_CODE, or the app refuses to start.
+    mode: ${REGISTRATION_MODE:code}
   backup:
     # Durability belongs to the platform here (managed snapshots, pg_dump, WAL).
     # Stated explicitly so nothing silently assumes the app is covering it.
