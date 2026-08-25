@@ -1,6 +1,7 @@
 package my.savingbuddy.web;
 
 import my.savingbuddy.api.Dtos.ErrorResponse;
+import my.savingbuddy.security.LoginRateLimiter.TooManyLoginAttemptsException;
 import my.savingbuddy.service.AuthService.EmailTakenException;
 import my.savingbuddy.service.AuthService.IncorrectPasswordException;
 import my.savingbuddy.service.NotFoundException;
@@ -32,6 +33,14 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse unreadable(Exception ex) {
         return new ErrorResponse("Malformed request", List.of());
+    }
+
+    /** Needs a header, so it returns a ResponseEntity rather than using @ResponseStatus. */
+    @ExceptionHandler(TooManyLoginAttemptsException.class)
+    public org.springframework.http.ResponseEntity<ErrorResponse> tooManyAttempts(TooManyLoginAttemptsException ex) {
+        return org.springframework.http.ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+            .header(org.springframework.http.HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+            .body(new ErrorResponse(ex.getMessage(), List.of()));
     }
 
     @ExceptionHandler(IncorrectPasswordException.class)

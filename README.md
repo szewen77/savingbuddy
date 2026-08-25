@@ -164,6 +164,21 @@ hardened. It defaults to `false` locally (loopback is plain HTTP) and `true`
 under the `postgres` profile. Both cookies are `SameSite=Lax`; only the session
 cookie is `HttpOnly`, since the SPA has to read the CSRF token to echo it back.
 
+## Login throttling
+
+Failed sign-ins are rate limited per IP (20 / 15 min) and per email (5 / 15 min),
+returning `429` with `Retry-After`. Successes clear both counters, so mistyping a
+password twice and then getting it right costs nothing.
+
+It is a **throttle, never a lockout**. No `locked` column, no admin unlock: an
+account that could be disabled by anyone who knows its email address turns a
+defence into a denial-of-service tool. The window is fixed, so continued failures
+cannot extend an active block.
+
+Behind a reverse proxy, set `FORWARD_HEADERS_STRATEGY` appropriately — otherwise
+`getRemoteAddr()` returns the proxy's address and every user shares one bucket.
+Only trust those headers when a proxy you control sets them.
+
 ## CI
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs three jobs in parallel

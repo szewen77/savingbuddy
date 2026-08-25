@@ -40,6 +40,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
+    <!-- Bounded, self-expiring maps for the login throttle. A plain HashMap keyed
+         on attacker-supplied input is an unauthenticated memory-exhaustion vector. -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+    </dependency>
     <!-- The starter, not flyway-core alone: Boot 4 ships each technology's
          autoconfiguration in its own module, and without it Flyway never runs. -->
     <dependency>

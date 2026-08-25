@@ -53,6 +53,12 @@ savingbuddy:
   secure-cookies: ${SECURE_COOKIES:false}
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  login-rate-limit:
+    # A self-healing window, not a lockout: an account must never be disableable
+    # by someone who merely knows its email address.
+    window: 15m
+    ip-max-failures: 20
+    email-max-failures: 5
   backup:
     # snapshot = the app takes its own H2 file snapshots (local default).
     # none     = the app takes no backups, and that is a deliberate choice.
@@ -77,6 +83,10 @@ server:
   # A container or load balancer needs a reachable bind. This is only safe
   # behind HTTPS and a trusted network boundary — see the README.
   address: 0.0.0.0
+  # Behind a proxy, getRemoteAddr() is the proxy's address, so every user shares
+  # one rate-limit bucket. Only trust these headers when a proxy you control
+  # actually sets them.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:native}
   servlet:
     session:
       cookie:

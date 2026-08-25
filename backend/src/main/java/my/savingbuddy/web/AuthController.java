@@ -9,6 +9,7 @@ import my.savingbuddy.api.Dtos.ChangePasswordRequest;
 import my.savingbuddy.api.Dtos.LoginRequest;
 import my.savingbuddy.api.Dtos.RegisterRequest;
 import my.savingbuddy.security.CurrentUser;
+import my.savingbuddy.security.LoginRateLimiter;
 import my.savingbuddy.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,14 +30,17 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final CurrentUser currentUser;
     private final SessionRegistry sessionRegistry;
+    private final LoginRateLimiter rateLimiter;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
     public AuthController(AuthService auth, AuthenticationManager authenticationManager,
-                          CurrentUser currentUser, SessionRegistry sessionRegistry) {
+                          CurrentUser currentUser, SessionRegistry sessionRegistry,
+                          LoginRateLimiter rateLimiter) {
         this.auth = auth;
         this.authenticationManager = authenticationManager;
         this.currentUser = currentUser;
         this.sessionRegistry = sessionRegistry;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/register")
@@ -93,8 +97,21 @@ public class AuthController {
 
     private void establishSession(String email, String password,
                                   HttpServletRequest request, HttpServletResponse response) {
-        Authentication authentication =
-            authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email, password));
+        // Called explicitly rather than via a filter or a failure handler: this
+        // controller authenticates by hand, so AuthenticationFailureHandler never
+        // fires, and the failure event that does fire carries no client details.
+        String ip = request.getRemoteAddr();
+        rateLimiter.checkAllowed(ip, email);
+
+        Authentication authentication;
+        try {
+            authentication =
+                authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email, password));
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            rateLimiter.recordFailure(ip, email);
+            throw e;
+        }
+        rateLimiter.recordSuccess(ip, email);
         // Session fixation defence: a fresh session id once authenticated.
         HttpSession old = request.getSession(false);
         if (old != null) {

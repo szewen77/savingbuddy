@@ -213,7 +213,12 @@ public final class Dtos {
         @NotBlank @Size(min = 8, max = 72) String password
     ) {}
 
-    public record LoginRequest(@NotBlank String email, @NotBlank String password) {}
+    /** Bounded deliberately: the email becomes a rate-limiter key, so an unbounded
+     *  value would let an unauthenticated caller drive memory use. */
+    public record LoginRequest(
+        @NotBlank @Size(max = 255) String email,
+        @NotBlank @Size(max = 200) String password
+    ) {}
 
     public record ChangePasswordRequest(
         @NotBlank String currentPassword,
