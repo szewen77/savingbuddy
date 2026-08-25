@@ -236,6 +236,23 @@ savingbuddy:
     keep: 7
 ```
 
+**Restoring a backup.** Snapshots are plain zips containing the database file.
+Stop the app, then:
+
+```bash
+cd ~/.savingbuddy
+rm -f db/savingbuddy.mv.db
+unzip -o "$(ls -1t backups/*.zip | head -1)" -d db/
+```
+
+Start the app again and the data is back as of that snapshot — anything recorded
+since is lost, so export first if the current state still matters.
+
+An unconfigured database is never snapshotted. That guard matters more than it
+looks: without it, losing the database and restarting would write an *empty*
+backup, and since old snapshots are pruned, a few more restarts would evict every
+good one — turning a recoverable accident into permanent loss.
+
 **Export.** `GET /api/export` returns the entire database as JSON — every
 transaction, goal, bill and account — and the sidebar has an *Export my data*
 link that downloads it. This is both the recovery path and the guarantee that

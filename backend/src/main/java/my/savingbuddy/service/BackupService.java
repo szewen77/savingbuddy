@@ -22,6 +22,11 @@ import java.util.List;
  * <p>A local install has exactly one copy of the user's financial history, so a
  * cheap rolling backup is the difference between a bad day and a lost year. Uses
  * H2's own {@code BACKUP TO}, which is safe to run against a live database.
+ *
+ * <p>An unconfigured database is never snapshotted. Without that guard, losing the
+ * database and restarting would write an empty backup, and because old snapshots
+ * are pruned, restarting a few more times would evict every good one — turning a
+ * recoverable accident into permanent loss at exactly the worst moment.
  */
 @Component
 public class BackupService implements ApplicationRunner {
@@ -49,11 +54,25 @@ public class BackupService implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         if (!enabled) return;
         try {
+            if (!hasSomethingWorthKeeping()) {
+                log.debug("Nothing configured yet — skipping the startup backup.");
+                return;
+            }
             snapshot();
         } catch (Exception e) {
             // A failed backup must never stop the app from starting.
             log.warn("Could not write a startup backup: {}", e.getMessage());
         }
+    }
+
+    /**
+     * True when the database holds a configured plan. Snapshotting an empty
+     * database is worse than useless: it consumes a rotation slot and pushes a
+     * real backup out.
+     */
+    boolean hasSomethingWorthKeeping() {
+        Integer plans = jdbc.queryForObject("select count(*) from plan", Integer.class);
+        return plans != null && plans > 0;
     }
 
     /** Writes a timestamped snapshot and prunes older ones. Returns the file written. */
