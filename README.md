@@ -155,8 +155,14 @@ start rather than logging a warning and running for months without backups —
 believing you have backups when you do not is worse than knowing you have none.
 
 Deploying also means `server.address: 0.0.0.0`, which the `postgres` profile
-sets. **That is only safe behind HTTPS and a trusted network boundary.** Session
-cookies are not marked `Secure` yet, so plain HTTP would expose them.
+sets. **That is only safe behind HTTPS.**
+
+Cookies are governed by one flag, `SECURE_COOKIES`, read by both the session
+cookie and the CSRF cookie so they can never disagree — a `Secure` session cookie
+beside a non-`Secure` CSRF cookie leaks the token over plain HTTP while looking
+hardened. It defaults to `false` locally (loopback is plain HTTP) and `true`
+under the `postgres` profile. Both cookies are `SameSite=Lax`; only the session
+cookie is `HttpOnly`, since the SPA has to read the CSRF token to echo it back.
 
 ## CI
 

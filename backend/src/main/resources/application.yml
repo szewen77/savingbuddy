@@ -32,8 +32,25 @@ server:
   port: 8080
   # Local-only app: bind to loopback so the API is not served to the network.
   address: 127.0.0.1
+  servlet:
+    session:
+      # Idle timeout. Previously an inherited 30-minute default; stated so it is
+      # a decision rather than a coincidence.
+      timeout: 12h
+      cookie:
+        http-only: true
+        # Lax, not Strict: the SPA is same-origin so Strict costs nothing
+        # functionally, but Lax keeps a link from an email landing signed-in.
+        # CSRF tokens carry the cross-site defence either way.
+        same-site: lax
+        # Off by default because the local app is plain HTTP on loopback. A
+        # deployment MUST turn this on — see the postgres profile below.
+        secure: ${SECURE_COOKIES:false}
 
 savingbuddy:
+  # Both cookies read this one value so they can never disagree: a Secure session
+  # cookie beside a non-Secure CSRF cookie leaks the token over plain HTTP.
+  secure-cookies: ${SECURE_COOKIES:false}
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
   backup:
@@ -60,7 +77,14 @@ server:
   # A container or load balancer needs a reachable bind. This is only safe
   # behind HTTPS and a trusted network boundary — see the README.
   address: 0.0.0.0
+  servlet:
+    session:
+      cookie:
+        secure: ${SECURE_COOKIES:true}
 savingbuddy:
+  # A deployment is reachable over a network, so cookies must be HTTPS-only.
+  # Overridable for a deployment terminating TLS elsewhere, but the default is safe.
+  secure-cookies: ${SECURE_COOKIES:true}
   backup:
     # Durability belongs to the platform here (managed snapshots, pg_dump, WAL).
     # Stated explicitly so nothing silently assumes the app is covering it.

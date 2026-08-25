@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -47,11 +48,17 @@ import java.util.function.Supplier;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private final boolean secureCookies;
+
+    public SecurityConfig(@Value("${savingbuddy.secure-cookies:false}") boolean secureCookies) {
+        this.secureCookies = secureCookies;
+    }
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRepository(csrfTokenRepository())
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
@@ -88,6 +95,24 @@ public class SecurityConfig {
     @Bean
     HttpSessionEventPublisher httpSessionEventPublisher() {
         return new HttpSessionEventPublisher();
+    }
+
+    /**
+     * The CSRF cookie is written by this repository, not by the servlet container,
+     * so {@code server.servlet.session.cookie.*} does not reach it. Both read the
+     * same flag: a Secure session cookie beside a non-Secure CSRF cookie would
+     * leak the token over plain HTTP while looking hardened.
+     *
+     * <p>HttpOnly stays false by design — the SPA has to read this one to echo it
+     * back as a header.
+     */
+    private CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repo = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repo.setCookieCustomizer(cookie -> cookie
+            .secure(secureCookies)
+            .sameSite("Lax")
+            .path("/"));
+        return repo;
     }
 
     @Bean
