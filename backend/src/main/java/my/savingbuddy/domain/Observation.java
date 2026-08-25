@@ -11,6 +11,9 @@ public class Observation {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Column(nullable = false) private String title;
     @Column(nullable = false, length = 500) private String body;
     @Enumerated(EnumType.STRING) @Column(nullable = false) private Tone tone;
@@ -18,7 +21,8 @@ public class Observation {
 
     protected Observation() {}
 
-    public Observation(String title, String body, Tone tone, int sortOrder) {
+    public Observation(Long userId, String title, String body, Tone tone, int sortOrder) {
+        this.userId = userId;
         this.title = title;
         this.body = body;
         this.tone = tone;
@@ -26,6 +30,7 @@ public class Observation {
     }
 
     public Long getId() { return id; }
+    public Long getUserId() { return userId; }
     public String getTitle() { return title; }
     public String getBody() { return body; }
     public Tone getTone() { return tone; }

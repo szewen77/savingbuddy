@@ -33,20 +33,20 @@ public class SettingsService {
     }
 
     @Transactional(readOnly = true)
-    public SettingsResponse get() {
-        Plan p = plan();
+    public SettingsResponse get(Long userId) {
+        Plan p = plan(userId);
         return new SettingsResponse(
             new SettingsPlan(p.getOwnerName(), p.getEmployer(), p.getPayday(), p.getSalary(),
                 p.getBillsAllocation(), p.getSavingsTarget(), p.getSpendingAllowance()),
-            accounts.findAllByOrderBySortOrderAsc().stream().map(this::toDto).toList()
+            accounts.findAllByUserIdOrderBySortOrderAsc(userId).stream().map(this::toDto).toList()
         );
     }
 
     @Transactional
-    public SettingsResponse update(SettingsRequest req) {
+    public SettingsResponse update(Long userId, SettingsRequest req) {
         validateKinds(req.accounts());
 
-        Plan p = plan();
+        Plan p = plan(userId);
         p.update(req.ownerName().trim(),
             req.employer() == null || req.employer().isBlank() ? "—" : req.employer().trim(),
             req.payday(),
@@ -55,7 +55,7 @@ public class SettingsService {
             Money.scale(req.savingsTarget()),
             Money.scale(req.spendingAllowance()));
 
-        List<Account> existing = accounts.findAllByOrderBySortOrderAsc();
+        List<Account> existing = accounts.findAllByUserIdOrderBySortOrderAsc(userId);
         Set<Long> keep = new HashSet<>();
         int order = 1;
 
@@ -63,7 +63,7 @@ public class SettingsService {
             String code = u.code().trim().toUpperCase();
             String name = u.name().trim();
             if (u.id() == null) {
-                accounts.save(new Account(code, name, u.kind(), Money.scale(u.balance()), order++));
+                accounts.save(new Account(userId, code, name, u.kind(), Money.scale(u.balance()), order++));
                 continue;
             }
             Account a = existing.stream().filter(x -> x.getId().equals(u.id())).findFirst()
@@ -76,8 +76,8 @@ public class SettingsService {
         List<Account> removed = new ArrayList<>();
         for (Account a : existing) {
             if (keep.contains(a.getId())) continue;
-            int txns = transactions.countByAccountId(a.getId());
-            int billCount = bills.countByAccountId(a.getId());
+            int txns = transactions.countByUserIdAndAccountId(userId, a.getId());
+            int billCount = bills.countByUserIdAndAccountId(userId, a.getId());
             if (txns > 0 || billCount > 0) {
                 throw new SetupService.InvalidSetupException(
                     "\"" + a.getName() + "\" still has " + txns + " transactions and " + billCount
@@ -87,7 +87,7 @@ public class SettingsService {
         }
         accounts.deleteAll(removed);
 
-        return get();
+        return get(userId);
     }
 
     private void validateKinds(List<SettingsAccountUpdate> list) {
@@ -102,14 +102,14 @@ public class SettingsService {
     }
 
     private SettingsAccount toDto(Account a) {
-        int txns = transactions.countByAccountId(a.getId());
-        int billCount = bills.countByAccountId(a.getId());
+        int txns = transactions.countByUserIdAndAccountId(a.getUserId(), a.getId());
+        int billCount = bills.countByUserIdAndAccountId(a.getUserId(), a.getId());
         return new SettingsAccount(a.getId(), a.getCode(), a.getName(), a.getKind(), a.getBalance(),
             txns, billCount, txns == 0 && billCount == 0);
     }
 
-    private Plan plan() {
-        return plans.findFirstByOrderByIdAsc()
+    private Plan plan(Long userId) {
+        return plans.findByUserId(userId)
             .orElseThrow(() -> new NotFoundException("No budget plan has been set up"));
     }
 }

@@ -10,6 +10,9 @@ public class Bill {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Column(nullable = false)
     private String name;
 
@@ -32,7 +35,8 @@ public class Bill {
 
     protected Bill() {}
 
-    public Bill(String name, BigDecimal amount, int dueDay, BillMethod method, Account account, LocalDate lastPaidOn) {
+    public Bill(Long userId, String name, BigDecimal amount, int dueDay, BillMethod method, Account account, LocalDate lastPaidOn) {
+        this.userId = userId;
         this.name = name;
         this.amount = amount;
         this.dueDay = dueDay;
@@ -48,6 +52,7 @@ public class Bill {
     }
 
     public Long getId() { return id; }
+    public Long getUserId() { return userId; }
     public String getName() { return name; }
     public BigDecimal getAmount() { return amount; }
     public int getDueDay() { return dueDay; }

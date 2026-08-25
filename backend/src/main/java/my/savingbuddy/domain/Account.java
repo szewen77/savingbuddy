@@ -9,6 +9,9 @@ public class Account {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Column(nullable = false, length = 8)
     private String code;
 
@@ -27,7 +30,8 @@ public class Account {
 
     protected Account() {}
 
-    public Account(String code, String name, AccountKind kind, BigDecimal balance, int sortOrder) {
+    public Account(Long userId, String code, String name, AccountKind kind, BigDecimal balance, int sortOrder) {
+        this.userId = userId;
         this.code = code;
         this.name = name;
         this.kind = kind;
@@ -48,6 +52,7 @@ public class Account {
     public void credit(BigDecimal amount) { this.balance = this.balance.add(amount); }
 
     public Long getId() { return id; }
+    public Long getUserId() { return userId; }
     public String getCode() { return code; }
     public String getName() { return name; }
     public AccountKind getKind() { return kind; }

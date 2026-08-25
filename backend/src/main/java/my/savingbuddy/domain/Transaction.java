@@ -10,6 +10,9 @@ public class Transaction {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private Account account;
 
@@ -36,8 +39,9 @@ public class Transaction {
 
     protected Transaction() {}
 
-    public Transaction(Account account, String name, String category, TransactionKind kind,
+    public Transaction(Long userId, Account account, String name, String category, TransactionKind kind,
                        BigDecimal amount, LocalDateTime occurredAt, String note) {
+        this.userId = userId;
         this.account = account;
         this.name = name;
         this.category = category;
@@ -49,6 +53,7 @@ public class Transaction {
 
     public Long getId() { return id; }
     public Account getAccount() { return account; }
+    public Long getUserId() { return userId; }
     public String getName() { return name; }
     public String getCategory() { return category; }
     public TransactionKind getKind() { return kind; }

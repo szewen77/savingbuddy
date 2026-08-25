@@ -56,8 +56,12 @@ class BackupServiceTest {
 
     private void configureAPlan() {
         jdbc.update("""
-            insert into plan (owner_name, employer, payday, salary, bills_allocation, savings_target, spending_allowance)
-            values ('Nurul', 'Petronas', 25, 7200, 2100, 3000, 2100)""");
+            insert into users (email, password_hash, created_at)
+            select 'nurul@example.com', 'x', current_timestamp
+            where not exists (select 1 from users)""");
+        jdbc.update("""
+            insert into plan (user_id, owner_name, employer, payday, salary, bills_allocation, savings_target, spending_allowance)
+            values ((select min(id) from users), 'Nurul', 'Petronas', 25, 7200, 2100, 3000, 2100)""");
     }
 
     private long countIn(Path dir) throws IOException {

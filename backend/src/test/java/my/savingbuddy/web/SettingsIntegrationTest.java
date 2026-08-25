@@ -3,6 +3,7 @@ package my.savingbuddy.web;
 import my.savingbuddy.ApiTestBase;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("demo")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SettingsIntegrationTest extends ApiTestBase {
+
+    @BeforeAll
+    void authenticate() throws Exception {
+        session = login(DEMO_EMAIL, DEMO_PASSWORD);
+    }
     @Autowired MockMvc mvc;
 
     /** Demo accounts: 1=Public Bank (BILLS), 2=CIMB (SAVINGS), 3=Hong Leong (SPENDING). */
@@ -40,7 +46,7 @@ class SettingsIntegrationTest extends ApiTestBase {
 
     @Test @Order(1)
     void settingsExposeTheCurrentConfigurationAndAccountUsage() throws Exception {
-        mvc.perform(get("/api/settings"))
+        doGet("/api/settings")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plan.ownerName").value("Sze Yin"))
             .andExpect(jsonPath("$.plan.payday").value(25))
@@ -57,14 +63,13 @@ class SettingsIntegrationTest extends ApiTestBase {
 
     @Test @Order(2)
     void updatingThePlanFlowsThroughToTheRestOfTheApp() throws Exception {
-        mvc.perform(put("/api/settings").contentType(MediaType.APPLICATION_JSON)
-                .content(body("Sze Yin Lee", 28, "3000", ALL_THREE)))
+        doPut("/api/settings", body("Sze Yin Lee", 28, "3000", ALL_THREE))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plan.ownerName").value("Sze Yin Lee"))
             .andExpect(jsonPath("$.plan.payday").value(28));
 
         // Safe to Spend is derived from the allowance, so raising it moves immediately.
-        mvc.perform(get("/api/summary"))
+        doGet("/api/summary")
             .andExpect(jsonPath("$.profile.name").value("Sze Yin Lee"))
             .andExpect(jsonPath("$.profile.payday").value(28))
             .andExpect(jsonPath("$.safeToSpend.allowance").value(3000.00))
@@ -74,26 +79,23 @@ class SettingsIntegrationTest extends ApiTestBase {
     @Test @Order(3)
     void renamingAnAccountUpdatesItEverywhere() throws Exception {
         String renamed = ALL_THREE.replace("\"name\": \"Hong Leong Bank\"", "\"name\": \"HLB Everyday\"");
-        mvc.perform(put("/api/settings").contentType(MediaType.APPLICATION_JSON)
-                .content(body("Sze Yin Lee", 28, "3000", renamed)))
+        doPut("/api/settings", body("Sze Yin Lee", 28, "3000", renamed))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accounts[2].name").value("HLB Everyday"));
 
-        mvc.perform(get("/api/transactions"))
+        doGet("/api/transactions")
             .andExpect(jsonPath("$.transactions[0].accountName").value("HLB Everyday"));
     }
 
     @Test @Order(4)
     void thePurposeRulesAreEnforced() throws Exception {
         String noSpending = ALL_THREE.replace("\"kind\": \"SPENDING\"", "\"kind\": \"SAVINGS\"");
-        mvc.perform(put("/api/settings").contentType(MediaType.APPLICATION_JSON)
-                .content(body("Sze Yin Lee", 28, "3000", noSpending)))
+        doPut("/api/settings", body("Sze Yin Lee", 28, "3000", noSpending))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message", containsString("Exactly one account must be marked SPENDING")));
 
         String noBills = ALL_THREE.replace("\"kind\": \"BILLS\"", "\"kind\": \"SAVINGS\"");
-        mvc.perform(put("/api/settings").contentType(MediaType.APPLICATION_JSON)
-                .content(body("Sze Yin Lee", 28, "3000", noBills)))
+        doPut("/api/settings", body("Sze Yin Lee", 28, "3000", noBills))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message", containsString("At least one account must be marked BILLS")));
     }
@@ -104,13 +106,12 @@ class SettingsIntegrationTest extends ApiTestBase {
         String withoutBillsAccount = """
             {"id": 2, "code": "CIMB", "name": "CIMB", "kind": "BILLS", "balance": 13700},
             {"id": 3, "code": "HL", "name": "HLB Everyday", "kind": "SPENDING", "balance": 2000}""";
-        mvc.perform(put("/api/settings").contentType(MediaType.APPLICATION_JSON)
-                .content(body("Sze Yin Lee", 28, "3000", withoutBillsAccount)))
+        doPut("/api/settings", body("Sze Yin Lee", 28, "3000", withoutBillsAccount))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message", containsString("Public Bank")))
             .andExpect(jsonPath("$.message", containsString("cannot be removed")));
 
-        mvc.perform(get("/api/settings")).andExpect(jsonPath("$.accounts", hasSize(3)));
+        doGet("/api/settings").andExpect(jsonPath("$.accounts", hasSize(3)));
     }
 
     @Test @Order(6)
@@ -119,14 +120,13 @@ class SettingsIntegrationTest extends ApiTestBase {
             {"id": 1, "code": "PB", "name": "Public Bank", "kind": "BILLS", "balance": 6000},
             {"id": 3, "code": "HL", "name": "HLB Everyday", "kind": "SPENDING", "balance": 2000},
             {"code": "MAE", "name": "MAE Savings", "kind": "SAVINGS", "balance": 500}""";
-        mvc.perform(put("/api/settings").contentType(MediaType.APPLICATION_JSON)
-                .content(body("Sze Yin Lee", 28, "3000", swapped)))
+        doPut("/api/settings", body("Sze Yin Lee", 28, "3000", swapped))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accounts", hasSize(3)))
             .andExpect(jsonPath("$.accounts[2].name").value("MAE Savings"))
             .andExpect(jsonPath("$.accounts[2].balance").value(500.00));
 
-        mvc.perform(get("/api/summary"))
+        doGet("/api/summary")
             .andExpect(jsonPath("$.money.savings").value(500.00));
     }
 }

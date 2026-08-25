@@ -23,15 +23,15 @@ public class SetupService {
     }
 
     @Transactional(readOnly = true)
-    public SetupStatus status() {
-        return plans.findFirstByOrderByIdAsc()
+    public SetupStatus status(Long userId) {
+        return plans.findByUserId(userId)
             .map(p -> new SetupStatus(true, p.getOwnerName()))
             .orElseGet(() -> new SetupStatus(false, null));
     }
 
     @Transactional
-    public SetupStatus configure(SetupRequest req) {
-        if (plans.count() > 0) {
+    public SetupStatus configure(Long userId, SetupRequest req) {
+        if (plans.existsByUserId(userId)) {
             throw new AlreadyConfiguredException("SavingBuddy is already set up");
         }
         long spending = req.accounts().stream().filter(a -> a.kind() == AccountKind.SPENDING).count();
@@ -44,6 +44,7 @@ public class SetupService {
         }
 
         plans.save(new Plan(
+            userId,
             req.ownerName().trim(),
             req.employer() == null || req.employer().isBlank() ? "—" : req.employer().trim(),
             req.payday(),
@@ -55,10 +56,10 @@ public class SetupService {
 
         int order = 1;
         for (SetupAccount a : req.accounts()) {
-            accounts.save(new Account(a.code().trim(), a.name().trim(), a.kind(), Money.scale(a.balance()), order++));
+            accounts.save(new Account(userId, a.code().trim(), a.name().trim(), a.kind(), Money.scale(a.balance()), order++));
         }
 
-        return status();
+        return status(userId);
     }
 
     public static class AlreadyConfiguredException extends RuntimeException {

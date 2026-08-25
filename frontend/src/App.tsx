@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { useSetupStatus } from '@/api/hooks'
+import { useMe, useSetupStatus } from '@/api/hooks'
 import { UiProvider } from '@/state/ui'
 import { AppShell } from '@/components/layout/AppShell'
+import { Auth } from '@/screens/Auth'
 import { Onboarding } from '@/screens/Onboarding'
 import { ErrorState, Loading } from '@/components/ui/States'
 import { Home } from '@/screens/Home'
@@ -16,8 +17,24 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000, refetchOnWindowFocus: false } },
 })
 
-/** A fresh install has no plan yet, so onboarding stands in front of the whole app. */
+/** Sign in first; a signed-in user with no plan yet gets onboarding; then the app. */
 function Root() {
+  const me = useMe()
+
+  if (me.isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
+        <Loading label="Starting SavingBuddy…" />
+      </div>
+    )
+  }
+
+  if (me.error) return <Auth />
+
+  return <ConfiguredGate />
+}
+
+function ConfiguredGate() {
   const { data, isPending, error, refetch } = useSetupStatus()
 
   if (isPending) {

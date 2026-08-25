@@ -42,8 +42,8 @@ public class ExportService {
         this.savingPlans = savingPlans;
     }
 
-    public ExportBundle export() {
-        Plan p = plans.findFirstByOrderByIdAsc().orElse(null);
+    public ExportBundle export(Long userId) {
+        Plan p = plans.findByUserId(userId).orElse(null);
 
         return new ExportBundle(
             "savingbuddy",
@@ -51,29 +51,29 @@ public class ExportService {
             Instant.now(),
             p == null ? null : new ExportPlan(p.getOwnerName(), p.getEmployer(), p.getPayday(), p.getSalary(),
                 p.getBillsAllocation(), p.getSavingsTarget(), p.getSpendingAllowance()),
-            accounts.findAllByOrderBySortOrderAsc().stream()
+            accounts.findAllByUserIdOrderBySortOrderAsc(userId).stream()
                 .map(a -> new ExportAccount(a.getId(), a.getCode(), a.getName(), a.getKind(), a.getBalance(), a.getSortOrder()))
                 .toList(),
-            transactions.findAllByOrderByOccurredAtDescIdDesc().stream()
+            transactions.findAllByUserIdOrderByOccurredAtDescIdDesc(userId).stream()
                 .map(t -> new ExportTransaction(t.getId(), t.getAccount().getId(), t.getAccount().getName(), t.getName(),
                     t.getCategory(), t.getKind(), t.getAmount(), t.getOccurredAt(), t.getNote()))
                 .toList(),
-            bills.findAllByOrderByDueDayAsc().stream()
+            bills.findAllByUserIdOrderByDueDayAsc(userId).stream()
                 .map(b -> new ExportBill(b.getId(), b.getAccount().getId(), b.getName(), b.getAmount(), b.getDueDay(),
                     b.getMethod(), b.getLastPaidOn()))
                 .toList(),
-            goals.findAllByOrderBySortOrderAsc().stream()
+            goals.findAllByUserIdOrderBySortOrderAsc(userId).stream()
                 .map(g -> new ExportGoal(g.getId(), g.getName(), g.getDescription(), g.getTarget(), g.getSaved(),
                     g.getMonthly(), g.getTargetMonth().toString(), g.isPriority(), g.getDelayMonths(), g.getSortOrder()))
                 .toList(),
-            months.findAllByOrderByMonthAsc().stream()
+            months.findAllByUserIdOrderByMonthAsc(userId).stream()
                 .map(m -> new ExportMonth(m.getMonth().toString(), m.getIncome(), m.getSaved(), m.getEatingOut(),
                     m.getGroceries(), m.getTransport(), m.getOther()))
                 .toList(),
-            observations.findAllByOrderBySortOrderAsc().stream()
+            observations.findAllByUserIdOrderBySortOrderAsc(userId).stream()
                 .map(o -> new ObservationDto(o.getId(), o.getTitle(), o.getBody(), o.getTone().name()))
                 .toList(),
-            savingPlans.findAll().stream()
+            savingPlans.findAllByUserId(userId).stream()
                 .map(s -> new SavingPlanDto(s.getId(), s.getTotalAmount(), s.getWeeks(), s.getWeeklyAmount(), s.getCreatedAt()))
                 .toList()
         );
@@ -84,8 +84,4 @@ public class ExportService {
         return "savingbuddy-" + today + ".json";
     }
 
-    /** Convenience for callers that only need the list sizes (used by the backup log line). */
-    public List<Integer> counts() {
-        return List.of((int) accounts.count(), (int) transactions.count(), (int) bills.count(), (int) goals.count());
-    }
 }

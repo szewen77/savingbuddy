@@ -3,6 +3,7 @@ import { api } from './client'
 import type { TransactionKind } from './types'
 
 export const keys = {
+  me: ['me'] as const,
   setup: ['setup'] as const,
   summary: ['summary'] as const,
   settings: ['settings'] as const,
@@ -10,6 +11,9 @@ export const keys = {
   insights: ['insights'] as const,
   preview: (amount: number) => ['afford', 'preview', amount] as const,
 }
+
+export const useMe = () =>
+  useQuery({ queryKey: keys.me, queryFn: api.me, staleTime: Infinity, retry: false })
 
 export const useSetupStatus = () =>
   useQuery({ queryKey: keys.setup, queryFn: api.setupStatus, staleTime: Infinity, retry: 1 })
@@ -53,6 +57,31 @@ export function useWaitAndSave() {
 export function useSaveSettings() {
   const invalidate = useInvalidateAll()
   return useMutation({ mutationFn: api.saveSettings, onSuccess: invalidate })
+}
+
+export function useLogin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) => api.login(email, password),
+    onSuccess: () => qc.invalidateQueries(),
+  })
+}
+
+export function useRegister() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) => api.register(email, password),
+    onSuccess: () => qc.invalidateQueries(),
+  })
+}
+
+export function useLogout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.logout,
+    // Clear, don't refetch: every query would just 401.
+    onSuccess: () => qc.resetQueries(),
+  })
 }
 
 export function useConfigure() {

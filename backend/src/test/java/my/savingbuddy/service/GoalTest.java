@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class GoalTest {
     private Goal japan() {
-        return new Goal("Japan Trip", null, new BigDecimal("8000"), new BigDecimal("3100"), new BigDecimal("700"),
+        return new Goal(1L, "Japan Trip", null, new BigDecimal("8000"), new BigDecimal("3100"), new BigDecimal("700"),
             YearMonth.of(2027, 3), false, 2);
     }
 

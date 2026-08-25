@@ -107,18 +107,34 @@ jobs:
             --spring.profiles.active=demo \
             --spring.datasource.url='jdbc:h2:mem:ci;MODE=PostgreSQL' \
             --savingbuddy.backup.enabled=false &
-          # Poll /api/summary, not /api/setup. The web server accepts requests
-          # before the demo seeder (an ApplicationRunner) has finished, so
-          # /api/setup answers 200 with configured:false during that window and
-          # would let the check race ahead of the data.
+          # Anonymous /api/summary must be 401 once the app is up — auth is on.
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/summary || true)
-            [ "$code" = "200" ] && break
+            [ "$code" = "401" ] && break
             sleep 2
           done
-          test "$code" = "200" || { echo "::error::app did not become ready (last status $code)"; exit 1; }
+          test "$code" = "401" || { echo "::error::expected 401 for anonymous summary, got $code"; exit 1; }
+
+          # Login as the demo user: fetch the CSRF cookie, echo it as a header.
+          # Retry, because the seeder (an ApplicationRunner) can still be running
+          # when the web server starts accepting requests.
+          JAR_COOKIES=$(mktemp)
+          for i in $(seq 1 30); do
+            curl -s -c "$JAR_COOKIES" -o /dev/null http://localhost:8080/api/auth/me
+            TOKEN=$(awk '/XSRF/ {print $7}' "$JAR_COOKIES")
+            login=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_COOKIES" -c "$JAR_COOKIES" \
+              -H "X-XSRF-TOKEN: $TOKEN" -H 'Content-Type: application/json' \
+              -d '{"email":"demo@savingbuddy.local","password":"demo12345"}' \
+              http://localhost:8080/api/auth/login)
+            [ "$login" = "200" ] && break
+            sleep 2
+          done
+          test "$login" = "200" || { echo "::error::demo login failed ($login)"; exit 1; }
+
+          curl -sf -b "$JAR_COOKIES" http://localhost:8080/api/summary > /dev/null \
+            || { echo "::error::authenticated /api/summary failed"; exit 1; }
           curl -sf http://localhost:8080/ | grep -qi '<div id="root"' || { echo "::error::UI not served"; exit 1; }
-          echo "Packaged app serves both the API and the UI."
+          echo "Auth gate up, demo login works, UI served."
 
       - uses: actions/upload-artifact@v7
         with:

@@ -1,41 +1,102 @@
 package my.savingbuddy;
 
+import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.UUID;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Base for full-stack API tests.
  *
- * <p>Each test class gets its own database. Two things are needed for that, and the
- * second is easy to miss:
+ * <p>Each test class gets its own database (unique in-memory name per context,
+ * plus {@code @DirtiesContext} so Spring's context cache cannot hand two classes
+ * the same one), and authenticates through the real endpoints — register or
+ * login, session cookie, CSRF header — so the tests cover what a browser does,
+ * not a shortcut around it.
  *
- * <ul>
- *   <li>A unique in-memory database per context — {@code DB_CLOSE_DELAY=-1} keeps H2
- *       alive for the whole JVM, so a shared name means shared data.</li>
- *   <li>A context that is not shared in the first place. Spring caches contexts by
- *       configuration, so two classes with the same profiles and annotations get the
- *       <em>same</em> context — and therefore the same database, unique name or not.
- *       {@code @DirtiesContext} closes it after each class so the next one rebuilds.</li>
- * </ul>
- *
- * <p>Within a single class the context is reused, so ordered tests can build on each
- * other deliberately.
+ * <p>{@code PER_CLASS} lifecycle lets ordered tests share the {@code session}
+ * field established once in a non-static {@code @BeforeAll}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(FixedClockConfig.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class ApiTestBase {
+    protected static final String DEMO_EMAIL = "demo@savingbuddy.local";
+    protected static final String DEMO_PASSWORD = "demo12345";
+
+    @Autowired protected MockMvc mvc;
+
+    /** The authenticated session most tests act in. Subclasses set it in @BeforeAll. */
+    protected MockHttpSession session;
 
     @DynamicPropertySource
     static void isolatedDatabase(DynamicPropertyRegistry registry) {
         String name = "sb-" + UUID.randomUUID();
         registry.add("spring.datasource.url", () -> "jdbc:h2:mem:" + name + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1");
+    }
+
+    protected MockHttpSession register(String email, String password) throws Exception {
+        var result = mvc.perform(post("/api/auth/register").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
+            .andExpect(status().isCreated())
+            .andReturn();
+        return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    protected MockHttpSession login(String email, String password) throws Exception {
+        var result = mvc.perform(post("/api/auth/login").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
+            .andExpect(status().isOk())
+            .andReturn();
+        return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    // ---- Requests in the default session ----
+
+    protected ResultActions doGet(String url) throws Exception {
+        return mvc.perform(get(url).session(session));
+    }
+
+    protected ResultActions doGet(String url, String param, String value) throws Exception {
+        return mvc.perform(get(url).param(param, value).session(session));
+    }
+
+    protected ResultActions doPost(String url, String json) throws Exception {
+        return mvc.perform(post(url).session(session).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    protected ResultActions doPut(String url, String json) throws Exception {
+        return mvc.perform(put(url).session(session).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    // ---- The same, as a specific user (for isolation tests) ----
+
+    protected ResultActions doGet(MockHttpSession as, String url) throws Exception {
+        return mvc.perform(get(url).session(as));
+    }
+
+    protected ResultActions doPost(MockHttpSession as, String url, String json) throws Exception {
+        return mvc.perform(post(url).session(as).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
     }
 }

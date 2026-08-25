@@ -39,15 +39,15 @@ public class InsightsService {
         this.clock = clock;
     }
 
-    public InsightsResponse insights() {
-        Plan plan = budget.plan();
+    public InsightsResponse insights(Long userId) {
+        Plan plan = budget.plan(userId);
         YearMonth current = clock.currentMonth();
         YearMonth from = current.minusMonths(HISTORY_MONTHS);
 
-        List<MonthSummary> past = history.findAllByOrderByMonthAsc().stream()
+        List<MonthSummary> past = history.findAllByUserIdOrderByMonthAsc(userId).stream()
             .filter(m -> !m.getMonth().isBefore(from) && m.getMonth().isBefore(current)).toList();
 
-        BigDecimal savedNow = budget.savedThisMonth();
+        BigDecimal savedNow = budget.savedThisMonth(userId);
         List<MonthPoint> months = new ArrayList<>();
         for (MonthSummary m : past) months.add(point(m.getMonth(), m.getSaved(), m.getIncome(), false));
         months.add(point(current, savedNow, plan.getSalary(), true));
@@ -61,12 +61,12 @@ public class InsightsService {
         Map<String, BigDecimal> byCat = new LinkedHashMap<>();
         TRACKED.forEach(c -> byCat.put(c, BigDecimal.ZERO));
         byCat.put(EVERYTHING_ELSE, BigDecimal.ZERO);
-        for (Transaction t : budget.transactionsThisMonth()) {
+        for (Transaction t : budget.transactionsThisMonth(userId)) {
             if (!t.getKind().isOutflow()) continue;
             String key = TRACKED.contains(t.getCategory()) ? t.getCategory() : EVERYTHING_ELSE;
             byCat.merge(key, t.getAmount(), BigDecimal::add);
         }
-        BigDecimal spent = budget.outflowsThisMonth();
+        BigDecimal spent = budget.outflowsThisMonth(userId);
 
         Map<String, Function<MonthSummary, BigDecimal>> accessors = Map.of(
             "Eating out", MonthSummary::getEatingOut,
@@ -81,7 +81,7 @@ public class InsightsService {
             return new CategoryDto(e.getKey(), amount, Money.ratio(amount, spent), avg, Money.scale(amount.subtract(avg)));
         }).toList();
 
-        List<ObservationDto> obs = observations.findAllByOrderBySortOrderAsc().stream()
+        List<ObservationDto> obs = observations.findAllByUserIdOrderBySortOrderAsc(userId).stream()
             .map(o -> new ObservationDto(o.getId(), o.getTitle(), o.getBody(), o.getTone().name())).toList();
 
         return new InsightsResponse(Money.ratio(savedNow, plan.getSalary()), streak, spent,

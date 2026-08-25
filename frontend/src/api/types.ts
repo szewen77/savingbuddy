@@ -160,6 +160,8 @@ export interface Insights {
   observations: Observation[]
 }
 
+export interface AuthUser { email: string }
+
 export interface SetupStatus { configured: boolean; ownerName: string | null }
 
 export interface SetupAccount {

@@ -10,6 +10,9 @@ public class Plan {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Column(nullable = false)
     private String ownerName;
 
@@ -37,8 +40,9 @@ public class Plan {
 
     protected Plan() {}
 
-    public Plan(String ownerName, String employer, int payday, BigDecimal salary, BigDecimal billsAllocation,
+    public Plan(Long userId, String ownerName, String employer, int payday, BigDecimal salary, BigDecimal billsAllocation,
                 BigDecimal savingsTarget, BigDecimal spendingAllowance) {
+        this.userId = userId;
         this.ownerName = ownerName;
         this.employer = employer;
         this.payday = payday;
@@ -61,6 +65,7 @@ public class Plan {
     }
 
     public Long getId() { return id; }
+    public Long getUserId() { return userId; }
     public String getOwnerName() { return ownerName; }
     public String getEmployer() { return employer; }
     public int getPayday() { return payday; }

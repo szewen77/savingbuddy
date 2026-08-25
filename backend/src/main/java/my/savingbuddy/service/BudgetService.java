@@ -40,40 +40,40 @@ public class BudgetService {
         this.clock = clock;
     }
 
-    public Plan plan() {
-        return plans.findFirstByOrderByIdAsc().orElseThrow(() -> new NotFoundException("No budget plan has been set up"));
+    public Plan plan(Long userId) {
+        return plans.findByUserId(userId).orElseThrow(() -> new NotFoundException("No budget plan has been set up"));
     }
 
-    public Account spendingAccount() {
-        return accounts.findFirstByKind(AccountKind.SPENDING)
+    public Account spendingAccount(Long userId) {
+        return accounts.findFirstByUserIdAndKind(userId, AccountKind.SPENDING)
             .orElseThrow(() -> new NotFoundException("No spending account configured"));
     }
 
-    public List<Transaction> transactionsThisMonth() {
+    public List<Transaction> transactionsThisMonth(Long userId) {
         YearMonth m = clock.currentMonth();
         LocalDateTime from = m.atDay(1).atStartOfDay();
-        return transactions.findAllByOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
-            from, from.plusMonths(1));
+        return transactions.findAllByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
+            userId, from, from.plusMonths(1));
     }
 
     /** Discretionary spending this month — what Safe to Spend is measured against. Bills are excluded. */
-    public BigDecimal spentThisMonth() {
-        return Money.scale(transactionsThisMonth().stream()
+    public BigDecimal spentThisMonth(Long userId) {
+        return Money.scale(transactionsThisMonth(userId).stream()
             .filter(t -> t.getKind() == TransactionKind.SPENDING)
             .map(Transaction::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
     /** Every ringgit that left the accounts this month, bills included. */
-    public BigDecimal outflowsThisMonth() {
-        return Money.scale(transactionsThisMonth().stream()
+    public BigDecimal outflowsThisMonth(Long userId) {
+        return Money.scale(transactionsThisMonth(userId).stream()
             .filter(t -> t.getKind().isOutflow())
             .map(Transaction::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
-    public BigDecimal safeToSpend() {
-        return Money.floorZero(plan().getSpendingAllowance().subtract(spentThisMonth()));
+    public BigDecimal safeToSpend(Long userId) {
+        return Money.floorZero(plan(userId).getSpendingAllowance().subtract(spentThisMonth(userId)));
     }
 
     public BigDecimal dailyAllowance(BigDecimal safe) {
@@ -81,34 +81,34 @@ public class BudgetService {
     }
 
     /** Month's allocated savings = sum of goal contributions. */
-    public BigDecimal savedThisMonth() {
-        return Money.scale(goals.findAll().stream().map(Goal::getMonthly).reduce(BigDecimal.ZERO, BigDecimal::add));
+    public BigDecimal savedThisMonth(Long userId) {
+        return Money.scale(goals.findAllByUserIdOrderBySortOrderAsc(userId).stream().map(Goal::getMonthly).reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
-    public BigDecimal unpaidBillsThisMonth() {
+    public BigDecimal unpaidBillsThisMonth(Long userId) {
         LocalDate today = clock.today();
-        return Money.scale(bills.findAll().stream()
+        return Money.scale(bills.findAllByUserIdOrderByDueDayAsc(userId).stream()
             .filter(b -> !b.isPaidFor(today))
             .map(Bill::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
     /** The goal that absorbs a purchase: the non-priority goal taking the largest monthly contribution. */
-    public Goal flexibleGoal() {
-        return goals.findAllByOrderBySortOrderAsc().stream()
+    public Goal flexibleGoal(Long userId) {
+        return goals.findAllByUserIdOrderBySortOrderAsc(userId).stream()
             .filter(g -> !g.isPriority() && !g.isOnHold())
             .max((a, b) -> a.getMonthly().compareTo(b.getMonthly()))
-            .or(() -> goals.findAllByOrderBySortOrderAsc().stream().filter(g -> !g.isPriority()).findFirst())
+            .or(() -> goals.findAllByUserIdOrderBySortOrderAsc(userId).stream().filter(g -> !g.isPriority()).findFirst())
             .orElseThrow(() -> new NotFoundException("No flexible goal to trade off against"));
     }
 
-    public SummaryResponse summary() {
-        Plan plan = plan();
+    public SummaryResponse summary(Long userId) {
+        Plan plan = plan(userId);
         LocalDate today = clock.today();
         YearMonth month = clock.currentMonth();
         String monthLabel = month.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
 
-        BigDecimal spent = spentThisMonth();
+        BigDecimal spent = spentThisMonth(userId);
         BigDecimal safe = Money.floorZero(plan.getSpendingAllowance().subtract(spent));
         int daysRemaining = clock.daysRemainingInMonth();
         BigDecimal daily = Money.divide(safe, daysRemaining);
@@ -125,12 +125,12 @@ public class BudgetService {
             monthLabel
         );
 
-        BigDecimal saved = savedThisMonth();
+        BigDecimal saved = savedThisMonth(userId);
         Savings savings = new Savings(saved, plan.getSavingsTarget(), saved.compareTo(plan.getSavingsTarget().multiply(new BigDecimal("0.75"))) >= 0);
 
-        List<Account> accts = accounts.findAllByOrderBySortOrderAsc();
-        List<Goal> goalList = goals.findAllByOrderBySortOrderAsc();
-        BigDecimal unpaid = unpaidBillsThisMonth();
+        List<Account> accts = accounts.findAllByUserIdOrderBySortOrderAsc(userId);
+        List<Goal> goalList = goals.findAllByUserIdOrderBySortOrderAsc(userId);
+        BigDecimal unpaid = unpaidBillsThisMonth(userId);
         BigDecimal committed = Money.scale(goalList.stream().map(Goal::getSaved).reduce(BigDecimal.ZERO, BigDecimal::add));
 
         List<AccountDto> accountDtos = accts.stream().map(a -> {
@@ -153,13 +153,13 @@ public class BudgetService {
         BigDecimal total = billsTotal.add(savingsTotal).add(spendingTotal);
         MoneyOverview money = new MoneyOverview(total, Money.floorZero(total.subtract(safe)), safe, billsTotal, savingsTotal, spendingTotal, accts.size());
 
-        List<Bill> billList = bills.findAllByOrderByDueDayAsc();
+        List<Bill> billList = bills.findAllByUserIdOrderByDueDayAsc(userId);
         List<BillDto> billDtos = billList.stream().map(b -> toDto(b, today)).toList();
         Bills billsDto = new Bills(billDtos, billList.size(), unpaid);
 
         List<GoalDto> goalDtos = goalList.stream().map(g -> toDto(g, month)).toList();
 
-        List<TransactionDto> recent = transactions.findAllByOrderByOccurredAtDescIdDesc().stream()
+        List<TransactionDto> recent = transactions.findAllByUserIdOrderByOccurredAtDescIdDesc(userId).stream()
             .limit(4).map(BudgetService::toDto).toList();
 
         return new SummaryResponse(profile, new SafeToSpend(safe, Money.scale(plan.getSpendingAllowance()), spent, daysRemaining, daily, weekly),

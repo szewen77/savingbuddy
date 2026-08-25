@@ -12,8 +12,10 @@ Implemented from the Claude Design project
 ## Tech stack
 
 A React single-page app served by a Spring Boot API, packaged together into one
-JAR. Everything runs locally — no accounts, no cloud, no external services at
-runtime.
+JAR. Multi-user with session authentication: every row in the database belongs
+to a user, and every query is scoped to the signed-in one. It still runs
+entirely locally by default — the cloud-deployment steps (PostgreSQL, HTTPS,
+a public bind) are deliberately separate decisions.
 
 ### Frontend
 
@@ -33,6 +35,7 @@ runtime.
 | ---- | ------- | ------------- |
 | [Java](https://openjdk.org) | 21 | Records for DTOs, sealed-free plain domain classes |
 | [Spring Boot](https://spring.io/projects/spring-boot) | 4.1.1 | Web MVC, Data JPA, Bean Validation |
+| [Spring Security](https://spring.io/projects/spring-security) | 7 | Session auth, BCrypt password hashing, CSRF (SPA cookie recipe) |
 | [Hibernate](https://hibernate.org) | 7.4 (via Spring Data JPA) | ORM, set to `validate` — it never rewrites the schema |
 | [Flyway](https://www.red-gate.com/products/flyway/) | 12.4 | Owns the schema. Migrations in `backend/src/main/resources/db/migration` |
 | [H2](https://h2database.com) | 2.4.240 | Embedded database, one file at `~/.savingbuddy/db/` |
@@ -48,8 +51,15 @@ runtime.
   database holding real financial history.
 - **An injected `Clock`**, so "today" is a dependency. Tests pin it to a fixed
   date and assert on exact figures instead of tolerating drift.
-- **The API binds `127.0.0.1`.** There is no authentication, so it must not be
-  reachable from the network.
+- **The API binds `127.0.0.1`** until it is deliberately deployed behind HTTPS.
+- **Every repository finder requires a userId** — the unscoped variants were
+  deleted, not deprecated, so an unscoped query is a compile error rather than a
+  cross-user data leak. An integration test registers two users and checks every
+  endpoint returns only the caller's data.
+- **The server never trusts a client-sent user id.** The user comes from the
+  session (`CurrentUser`), is passed down through every service call, and any
+  client-supplied resource id (like an account id) is looked up scoped to that
+  user.
 - **Inter + Inter Tight**, with tabular figures wherever amounts stack. See
   [Typography](#typography).
 
@@ -97,8 +107,18 @@ npm run dev:api:demo
 ```
 
 That seeds a realistic household (three accounts, six bills, three goals, five
-months of history) dated relative to today, so it never looks stale. The seeder
-is `@Profile("demo")` and never runs on a normal launch.
+months of history) dated relative to today, so it never looks stale. Sign in as
+**demo@savingbuddy.local** / **demo12345**. The seeder is `@Profile("demo")` and
+never runs on a normal launch.
+
+### Upgrading from a pre-auth install
+
+The V2 migration adopts an existing single-user database instead of abandoning
+it: all data is assigned to a user **owner@localhost** with the password
+**savingbuddy**. Sign in with that and everything is where you left it. Change
+the password before ever exposing the app beyond localhost (a password-change
+endpoint is on the follow-up list; until then, re-register and export/import,
+or update the hash directly).
 
 ### Tests
 
@@ -164,7 +184,11 @@ transactions on read, so the numbers cannot drift from the ledger.
 | `POST` | `/api/afford/preview`   | Impact of a purchase — writes nothing |
 | `POST` | `/api/afford/buy`       | Record the purchase and delay the flexible goal |
 | `POST` | `/api/afford/wait`      | Turn the purchase into a three-week saving plan |
-| `GET`  | `/api/setup`            | Whether this install is configured yet |
+| `POST` | `/api/auth/register`    | Create an account (and sign in) |
+| `POST` | `/api/auth/login`       | Sign in — sets the session cookie |
+| `POST` | `/api/auth/logout`      | End the session |
+| `GET`  | `/api/auth/me`          | Who is signed in (401 when nobody) |
+| `GET`  | `/api/setup`            | Whether the signed-in user has a plan yet |
 | `POST` | `/api/setup`            | First-run configuration — plan and accounts |
 | `GET`  | `/api/settings`         | Current plan and accounts, with per-account usage |
 | `PUT`  | `/api/settings`         | Edit the plan and accounts |

@@ -3,6 +3,7 @@ package my.savingbuddy.web;
 import my.savingbuddy.ApiTestBase;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SetupIntegrationTest extends ApiTestBase {
+
+    @BeforeAll
+    void authenticate() throws Exception {
+        session = register("amir@example.com", "correct-horse-9");
+    }
     @Autowired MockMvc mvc;
 
     private static final String VALID = """
@@ -38,7 +44,7 @@ class SetupIntegrationTest extends ApiTestBase {
 
     @Test @Order(1)
     void aFreshInstallReportsItselfUnconfigured() throws Exception {
-        mvc.perform(get("/api/setup"))
+        doGet("/api/setup")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.configured").value(false))
             .andExpect(jsonPath("$.ownerName").doesNotExist());
@@ -46,14 +52,14 @@ class SetupIntegrationTest extends ApiTestBase {
 
     @Test @Order(2)
     void summaryIsUnavailableUntilConfigured() throws Exception {
-        mvc.perform(get("/api/summary"))
+        doGet("/api/summary")
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message", containsString("plan")));
     }
 
     @Test @Order(3)
     void exportOfAnEmptyInstallIsStillValid() throws Exception {
-        mvc.perform(get("/api/export"))
+        doGet("/api/export")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.app").value("savingbuddy"))
             .andExpect(jsonPath("$.plan").doesNotExist())
@@ -63,50 +69,46 @@ class SetupIntegrationTest extends ApiTestBase {
     @Test @Order(4)
     void setupRequiresExactlyOneSpendingAccount() throws Exception {
         String noSpending = VALID.replace("\"kind\": \"SPENDING\"", "\"kind\": \"SAVINGS\"");
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON).content(noSpending))
+        doPost("/api/setup", noSpending)
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message", containsString("Exactly one account must be marked SPENDING")));
 
         String twoSpending = VALID.replace("\"kind\": \"SAVINGS\"", "\"kind\": \"SPENDING\"");
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON).content(twoSpending))
+        doPost("/api/setup", twoSpending)
             .andExpect(status().isBadRequest());
     }
 
     @Test @Order(5)
     void setupRejectsMissingAndOutOfRangeFields() throws Exception {
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON)
-                .content(VALID.replace("\"payday\": 28", "\"payday\": 45")))
+        doPost("/api/setup", VALID.replace("\"payday\": 28", "\"payday\": 45"))
             .andExpect(status().isBadRequest());
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON)
-                .content(VALID.replace("\"ownerName\": \"Amir\"", "\"ownerName\": \"\"")))
+        doPost("/api/setup", VALID.replace("\"ownerName\": \"Amir\"", "\"ownerName\": \"\""))
             .andExpect(status().isBadRequest());
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON)
-                .content(VALID.replaceAll("\\{\"code\".*?\\}(,)?", "").replace("\"accounts\": [\n            \n          ]", "\"accounts\": []")))
+        doPost("/api/setup",
+                VALID.replaceAll("\\{\"code\".*?\\}(,)?", "").replace("\"accounts\": [\n            \n          ]", "\"accounts\": []"))
             .andExpect(status().isBadRequest());
     }
 
     @Test @Order(6)
     void setupValidatesFieldsInsideEachAccount() throws Exception {
         // Nested constraints only fire because @Valid sits on the list's type argument.
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON)
-                .content(VALID.replace("\"name\": \"Maybank\"", "\"name\": \"\"")))
+        doPost("/api/setup", VALID.replace("\"name\": \"Maybank\"", "\"name\": \"\""))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errors[*]", hasItem(containsString("accounts[0].name"))));
 
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON)
-                .content(VALID.replace("\"balance\": 3000", "\"balance\": -50")))
+        doPost("/api/setup", VALID.replace("\"balance\": 3000", "\"balance\": -50"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errors[*]", hasItem(containsString("accounts[0].balance"))));
     }
 
     @Test @Order(7)
     void configuringMakesTheAppUsable() throws Exception {
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON).content(VALID))
+        doPost("/api/setup", VALID)
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.configured").value(true))
             .andExpect(jsonPath("$.ownerName").value("Amir"));
 
-        mvc.perform(get("/api/summary"))
+        doGet("/api/summary")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.profile.name").value("Amir"))
             .andExpect(jsonPath("$.profile.firstName").value("Amir"))
@@ -120,15 +122,14 @@ class SetupIntegrationTest extends ApiTestBase {
 
     @Test @Order(8)
     void aSecondSetupIsRejected() throws Exception {
-        mvc.perform(post("/api/setup").contentType(MediaType.APPLICATION_JSON).content(VALID))
+        doPost("/api/setup", VALID)
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message", containsString("already set up")));
     }
 
     @Test @Order(9)
     void spendingIsRecordedAgainstTheConfiguredAccount() throws Exception {
-        mvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"amount\":150,\"category\":\"Groceries\"}"))
+        doPost("/api/transactions", "{\"amount\":150,\"category\":\"Groceries\"}")
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.transaction.accountName").value("RHB"))
             .andExpect(jsonPath("$.safeToSpend").value(2350.00));
@@ -136,7 +137,7 @@ class SetupIntegrationTest extends ApiTestBase {
 
     @Test @Order(10)
     void exportContainsTheConfiguredDataAndDownloadsAsAFile() throws Exception {
-        mvc.perform(get("/api/export"))
+        doGet("/api/export")
             .andExpect(status().isOk())
             .andExpect(header().string("Content-Disposition", containsString("savingbuddy-2026-08-22.json")))
             .andExpect(jsonPath("$.schemaVersion").value(1))

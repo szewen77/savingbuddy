@@ -1,7 +1,9 @@
 package my.savingbuddy.web;
 
 import my.savingbuddy.api.Dtos.ErrorResponse;
+import my.savingbuddy.service.AuthService.EmailTakenException;
 import my.savingbuddy.service.NotFoundException;
+import org.springframework.security.core.AuthenticationException;
 import my.savingbuddy.service.SetupService.AlreadyConfiguredException;
 import my.savingbuddy.service.SetupService.InvalidSetupException;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,19 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse unreadable(Exception ex) {
         return new ErrorResponse("Malformed request", List.of());
+    }
+
+    @ExceptionHandler(EmailTakenException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse emailTaken(EmailTakenException ex) {
+        return new ErrorResponse(ex.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse badCredentials(AuthenticationException ex) {
+        // One message for wrong email and wrong password alike — no user enumeration.
+        return new ErrorResponse("Email or password is incorrect", List.of());
     }
 
     @ExceptionHandler(AlreadyConfiguredException.class)

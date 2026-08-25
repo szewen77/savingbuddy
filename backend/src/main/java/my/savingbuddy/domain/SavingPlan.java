@@ -11,6 +11,9 @@ public class SavingPlan {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Column(nullable = false, precision = 14, scale = 2) private BigDecimal totalAmount;
     @Column(nullable = false) private int weeks;
     @Column(nullable = false, precision = 14, scale = 2) private BigDecimal weeklyAmount;
@@ -18,7 +21,8 @@ public class SavingPlan {
 
     protected SavingPlan() {}
 
-    public SavingPlan(BigDecimal totalAmount, int weeks, BigDecimal weeklyAmount, LocalDateTime createdAt) {
+    public SavingPlan(Long userId, BigDecimal totalAmount, int weeks, BigDecimal weeklyAmount, LocalDateTime createdAt) {
+        this.userId = userId;
         this.totalAmount = totalAmount;
         this.weeks = weeks;
         this.weeklyAmount = weeklyAmount;
@@ -26,6 +30,7 @@ public class SavingPlan {
     }
 
     public Long getId() { return id; }
+    public Long getUserId() { return userId; }
     public BigDecimal getTotalAmount() { return totalAmount; }
     public int getWeeks() { return weeks; }
     public BigDecimal getWeeklyAmount() { return weeklyAmount; }

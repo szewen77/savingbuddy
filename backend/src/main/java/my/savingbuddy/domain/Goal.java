@@ -11,6 +11,9 @@ public class Goal {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Column(nullable = false)
     private String name;
 
@@ -43,8 +46,9 @@ public class Goal {
 
     protected Goal() {}
 
-    public Goal(String name, String description, BigDecimal target, BigDecimal saved, BigDecimal monthly,
+    public Goal(Long userId, String name, String description, BigDecimal target, BigDecimal saved, BigDecimal monthly,
                 YearMonth targetMonth, boolean priority, int sortOrder) {
+        this.userId = userId;
         this.name = name;
         this.description = description;
         this.target = target;
@@ -73,6 +77,7 @@ public class Goal {
     public void delayBy(int months) { this.delayMonths = Math.min(monthsAtPace(), this.delayMonths + months); }
 
     public Long getId() { return id; }
+    public Long getUserId() { return userId; }
     public String getName() { return name; }
     public String getDescription() { return description; }
     public BigDecimal getTarget() { return target; }

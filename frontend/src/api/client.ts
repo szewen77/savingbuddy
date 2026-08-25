@@ -1,5 +1,5 @@
 import type {
-  Activity, AddExpenseRequest, AddExpenseResponse, AffordPreview, ApiError, BuyResponse,
+  Activity, AddExpenseRequest, AddExpenseResponse, AffordPreview, ApiError, AuthUser, BuyResponse,
   Insights, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
 } from './types'
 
@@ -9,11 +9,20 @@ export class HttpError extends Error {
   }
 }
 
+/** The CSRF token Spring writes into a readable cookie; echoed back as a header on mutations. */
+function csrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    ...init,
-  })
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
+  const method = init?.method ?? 'GET'
+  if (method !== 'GET') {
+    const token = csrfToken()
+    if (token) headers['X-XSRF-TOKEN'] = token
+  }
+  const res = await fetch(path, { headers, ...init })
   if (!res.ok) {
     let body: ApiError | null = null
     try { body = (await res.json()) as ApiError } catch { /* not JSON */ }
@@ -27,6 +36,10 @@ const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.strin
 const put = (body: unknown): RequestInit => ({ method: 'PUT', body: JSON.stringify(body) })
 
 export const api = {
+  me: () => request<AuthUser>('/api/auth/me'),
+  login: (email: string, password: string) => request<AuthUser>('/api/auth/login', json({ email, password })),
+  register: (email: string, password: string) => request<AuthUser>('/api/auth/register', json({ email, password })),
+  logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   setupStatus: () => request<SetupStatus>('/api/setup'),
   configure: (body: SetupRequest) => request<SetupStatus>('/api/setup', json(body)),
   summary: () => request<Summary>('/api/summary'),

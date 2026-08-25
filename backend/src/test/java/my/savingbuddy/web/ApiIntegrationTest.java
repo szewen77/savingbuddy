@@ -3,6 +3,7 @@ package my.savingbuddy.web;
 import my.savingbuddy.ApiTestBase;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,11 +21,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("demo")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiIntegrationTest extends ApiTestBase {
+
+    @BeforeAll
+    void authenticate() throws Exception {
+        session = login(DEMO_EMAIL, DEMO_PASSWORD);
+    }
     @Autowired MockMvc mvc;
 
     @Test @Order(1)
     void summaryReflectsSeededHousehold() throws Exception {
-        mvc.perform(get("/api/summary"))
+        doGet("/api/summary")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.profile.firstName").value("Sze"))
             .andExpect(jsonPath("$.profile.daysToPayday").value(3))
@@ -51,21 +57,21 @@ class ApiIntegrationTest extends ApiTestBase {
 
     @Test @Order(2)
     void activityGroupsAndFilters() throws Exception {
-        mvc.perform(get("/api/transactions"))
+        doGet("/api/transactions")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.spentThisMonth").value(944.00))
             .andExpect(jsonPath("$.receivedSincePayday").value(4500.00))
             .andExpect(jsonPath("$.lastPayday").value("2026-07-25"))
             .andExpect(jsonPath("$.transactions", hasSize(13)));
 
-        mvc.perform(get("/api/transactions").param("kind", "INCOME"))
+        doGet("/api/transactions", "kind", "INCOME")
             .andExpect(jsonPath("$.transactions", hasSize(1)))
             .andExpect(jsonPath("$.transactions[0].name", startsWith("Salary")));
     }
 
     @Test @Order(3)
     void insightsComputeAveragesFromHistory() throws Exception {
-        mvc.perform(get("/api/insights"))
+        doGet("/api/insights")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.savingRate", closeTo(0.444, 0.001)))
             .andExpect(jsonPath("$.risingStreak").value(4))
@@ -81,7 +87,7 @@ class ApiIntegrationTest extends ApiTestBase {
 
     @Test @Order(4)
     void affordPreviewShowsImpactWithoutWriting() throws Exception {
-        mvc.perform(post("/api/afford/preview").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":399}"))
+        doPost("/api/afford/preview", "{\"amount\":399}")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.verdict").value("YES"))
             .andExpect(jsonPath("$.safeAfter").value(1027.00))
@@ -92,39 +98,38 @@ class ApiIntegrationTest extends ApiTestBase {
             .andExpect(jsonPath("$.goal.delayMonths").value(1))
             .andExpect(jsonPath("$.waitPlan.weekly").value(133.00));
 
-        mvc.perform(post("/api/afford/preview").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":1500}"))
+        doPost("/api/afford/preview", "{\"amount\":1500}")
             .andExpect(jsonPath("$.verdict").value("NO"))
             .andExpect(jsonPath("$.shortfall").value(74.00));
 
-        mvc.perform(post("/api/afford/preview").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":6000}"))
+        doPost("/api/afford/preview", "{\"amount\":6000}")
             .andExpect(jsonPath("$.goal.stalls").value(true))
             .andExpect(jsonPath("$.goal.newMonth").doesNotExist());
 
-        mvc.perform(get("/api/summary")).andExpect(jsonPath("$.safeToSpend.amount").value(1426.00));
+        doGet("/api/summary").andExpect(jsonPath("$.safeToSpend.amount").value(1426.00));
     }
 
     @Test @Order(5)
     void validationRejectsBadAmounts() throws Exception {
-        mvc.perform(post("/api/afford/preview").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":-5}"))
+        doPost("/api/afford/preview", "{\"amount\":-5}")
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("Validation failed"));
-        mvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":10}"))
+        doPost("/api/transactions", "{\"amount\":10}")
             .andExpect(status().isBadRequest());
-        mvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("not json"))
+        doPost("/api/transactions", "not json")
             .andExpect(status().isBadRequest());
     }
 
     @Test @Order(6)
     void addingAnExpenseLowersSafeToSpend() throws Exception {
-        mvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"amount\":26,\"category\":\"Groceries\"}"))
+        doPost("/api/transactions", "{\"amount\":26,\"category\":\"Groceries\"}")
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.transaction.name").value("Groceries"))
             .andExpect(jsonPath("$.transaction.accountName").value("Hong Leong Bank"))
             .andExpect(jsonPath("$.safeToSpend").value(1400.00))
             .andExpect(jsonPath("$.daily").value(140.00));
 
-        mvc.perform(get("/api/summary"))
+        doGet("/api/summary")
             .andExpect(jsonPath("$.safeToSpend.amount").value(1400.00))
             .andExpect(jsonPath("$.money.spending").value(1974.00))
             .andExpect(jsonPath("$.recent[0].name").value("Groceries"));
@@ -132,7 +137,7 @@ class ApiIntegrationTest extends ApiTestBase {
 
     @Test @Order(7)
     void buyingAnywayDelaysTheFlexibleGoal() throws Exception {
-        mvc.perform(post("/api/afford/buy").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":700}"))
+        doPost("/api/afford/buy", "{\"amount\":700}")
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.safeToSpend").value(700.00))
             .andExpect(jsonPath("$.goal.name").value("Japan Trip"))
@@ -143,7 +148,7 @@ class ApiIntegrationTest extends ApiTestBase {
 
     @Test @Order(8)
     void waitAndSaveCreatesAPlan() throws Exception {
-        mvc.perform(post("/api/afford/wait").contentType(MediaType.APPLICATION_JSON).content("{\"amount\":300}"))
+        doPost("/api/afford/wait", "{\"amount\":300}")
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.weeks").value(3))
             .andExpect(jsonPath("$.weeklyAmount").value(100.00));

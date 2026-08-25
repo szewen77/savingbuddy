@@ -202,6 +202,17 @@ public final class Dtos {
 
     public record ObservationDto(Long id, String title, String body, String tone) {}
 
+    // ---- Auth ----
+
+    public record AuthUser(String email) {}
+
+    public record RegisterRequest(
+        @NotBlank @jakarta.validation.constraints.Email @Size(max = 255) String email,
+        @NotBlank @Size(min = 8, max = 72) String password
+    ) {}
+
+    public record LoginRequest(@NotBlank String email, @NotBlank String password) {}
+
     // ---- Setup / onboarding ----
 
     public record SetupStatus(boolean configured, String ownerName) {}

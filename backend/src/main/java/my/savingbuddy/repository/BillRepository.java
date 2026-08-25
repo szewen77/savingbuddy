@@ -5,9 +5,13 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
+/**
+ * Every finder requires a userId. The unscoped variants were deleted, not
+ * deprecated, so an unscoped query is a compile error rather than a data leak.
+ */
 public interface BillRepository extends JpaRepository<Bill, Long> {
-    int countByAccountId(Long accountId);
+    int countByUserIdAndAccountId(Long userId, Long accountId);
 
     @EntityGraph(attributePaths = "account")
-    List<Bill> findAllByOrderByDueDayAsc();
+    List<Bill> findAllByUserIdOrderByDueDayAsc(Long userId);
 }

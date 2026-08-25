@@ -35,23 +35,23 @@ public class AffordabilityService {
 
     /** Pure calculation of the impact; nothing is written. */
     @Transactional(readOnly = true)
-    public AffordPreview preview(BigDecimal rawAmount) {
+    public AffordPreview preview(Long userId, BigDecimal rawAmount) {
         BigDecimal amount = Money.scale(rawAmount);
-        Plan plan = budget.plan();
-        BigDecimal safeBefore = budget.safeToSpend();
+        Plan plan = budget.plan(userId);
+        BigDecimal safeBefore = budget.safeToSpend(userId);
         BigDecimal safeAfterRaw = safeBefore.subtract(amount);
         BigDecimal safeAfter = Money.floorZero(safeAfterRaw);
         BigDecimal shortfall = Money.floorZero(safeAfterRaw.negate());
         Verdict verdict = safeAfterRaw.signum() < 0 ? Verdict.NO : Verdict.YES;
 
-        BigDecimal savedBefore = budget.savedThisMonth();
+        BigDecimal savedBefore = budget.savedThisMonth(userId);
         BigDecimal savedAfter = Money.floorZero(savedBefore.subtract(amount));
 
         int days = clock.daysRemainingInMonth();
         BigDecimal dailyBefore = Money.divide(safeBefore, days);
         BigDecimal dailyAfter = Money.divide(safeAfter, days);
 
-        Goal goal = budget.flexibleGoal();
+        Goal goal = budget.flexibleGoal(userId);
         Delay delay = delayFor(goal, amount);
         GoalImpact impact = new GoalImpact(goal.getId(), goal.getName(), Money.scale(goal.getSaved()), Money.scale(goal.getTarget()),
             Money.ratio(goal.getSaved(), goal.getTarget()), goal.effectiveTargetMonth().toString(),
@@ -65,20 +65,20 @@ public class AffordabilityService {
     }
 
     @Transactional
-    public BuyResponse buy(BigDecimal rawAmount) {
+    public BuyResponse buy(Long userId, BigDecimal rawAmount) {
         BigDecimal amount = Money.scale(rawAmount);
-        Goal goal = budget.flexibleGoal();
+        Goal goal = budget.flexibleGoal(userId);
         Delay delay = delayFor(goal, amount);
-        Transaction t = transactions.recordPurchase(amount);
+        Transaction t = transactions.recordPurchase(userId, amount);
         goal.delayBy(delay.stalls() ? goal.delayRoom() : delay.months());
-        BigDecimal safe = budget.safeToSpend();
+        BigDecimal safe = budget.safeToSpend(userId);
         return new BuyResponse(BudgetService.toDto(t), safe, budget.dailyAllowance(safe), budget.toDto(goal, clock.currentMonth()));
     }
 
     @Transactional
-    public SavingPlanDto waitAndSave(BigDecimal rawAmount) {
+    public SavingPlanDto waitAndSave(Long userId, BigDecimal rawAmount) {
         BigDecimal amount = Money.scale(rawAmount);
-        SavingPlan plan = savingPlans.save(new SavingPlan(amount, WAIT_WEEKS, Money.divide(amount, WAIT_WEEKS), clock.now()));
+        SavingPlan plan = savingPlans.save(new SavingPlan(userId, amount, WAIT_WEEKS, Money.divide(amount, WAIT_WEEKS), clock.now()));
         return new SavingPlanDto(plan.getId(), plan.getTotalAmount(), plan.getWeeks(), plan.getWeeklyAmount(), plan.getCreatedAt());
     }
 

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useLogout } from '@/api/hooks'
 import type { Profile } from '@/api/types'
 import { useUi } from '@/state/ui'
 
@@ -9,6 +10,20 @@ export const NAV = [
   { to: '/money', label: 'Money' },
   { to: '/insights', label: 'Insights' },
 ]
+
+function SignOut() {
+  const logout = useLogout()
+  return (
+    <button
+      type="button"
+      onClick={() => logout.mutate()}
+      disabled={logout.isPending}
+      className="px-1.5 pb-1 text-left text-[11.5px] font-semibold text-ink/40 transition-colors hover:text-clay"
+    >
+      {logout.isPending ? 'Signing out…' : 'Sign out'}
+    </button>
+  )
+}
 
 export function Logo({ to }: { to?: string }) {
   const inner = (
@@ -82,6 +97,7 @@ export function Sidebar({ profile }: { profile?: Profile }) {
         </div>
         <span className="text-[13px] text-ink/30" aria-hidden>›</span>
       </NavLink>
+      <SignOut />
     </aside>
   )
 }
