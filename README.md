@@ -1,5 +1,7 @@
 # SavingBuddy
 
+[![CI](https://github.com/szewen77/savingbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/szewen77/savingbuddy/actions/workflows/ci.yml)
+
 A safe-to-spend budgeting app for a single household. Instead of showing a bank
 balance, SavingBuddy answers one question: **what can I actually spend today
 without breaking my month?**
@@ -105,6 +107,17 @@ npm test
 ```
 
 Runs both suites — JUnit against the API, Vitest against the UI.
+
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs three jobs in parallel
+on every push and pull request:
+
+| Job | What it covers |
+| --- | -------------- |
+| **Backend tests** | JUnit via Maven. Also the schema guard — Hibernate validates against the Flyway-built schema, so an entity changed without a matching migration fails here instead of on a real database. |
+| **Frontend tests** | `npm ci`, `tsc -b`, Vitest. |
+| **Package JAR** | Builds the real shipping artifact, asserts the React bundle actually landed inside the JAR, boots it, and checks the API and UI both answer. The runnable JAR is uploaded as a build artifact. |
 
 ## Typography
 
