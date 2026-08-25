@@ -232,9 +232,13 @@ removed — the request is rejected with the counts, rather than orphaning histo
 
 ## How your data is handled
 
-This is a single-user app that runs on your machine. There is no account, no
-server, and nothing leaves the device — which also means there is no safety net
-behind you, so the storage is set up accordingly.
+By default this runs entirely on your machine: the API binds `127.0.0.1` and the
+database is a file in your home directory. Accounts exist so that data can be
+isolated per user, not because anything is uploaded — nothing leaves the device
+unless *you* deploy it somewhere.
+
+That local-first default also means there is no safety net behind you, so the
+storage is set up accordingly.
 
 **Where it lives.** `~/.savingbuddy/db/` — an absolute path under your home
 directory, deliberately not relative to the working directory. A relative path
@@ -245,8 +249,8 @@ database, which looks exactly like losing everything.
 `backend/src/main/resources/db/migration` and run on startup. Hibernate is set to
 `ddl-auto: validate`: it checks that the schema matches the entities and refuses
 to boot if it does not. It will never rewrite your schema to fit a code change.
-Changing an entity therefore means writing a `V2__*.sql` migration alongside it —
-which is the point. Every test run validates the migration against the entities,
+Changing an entity therefore means writing the next `V*__*.sql` migration
+alongside it — which is the point. Every test run validates the migration against the entities,
 so a mismatch fails in CI rather than on someone's data.
 
 **Backups.** Every startup writes a timestamped snapshot to

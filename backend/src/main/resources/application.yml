@@ -6,7 +6,14 @@ spring:
     # Absolute path under the user's home. A relative path would resolve against
     # the working directory, so launching from elsewhere would silently open a
     # different (empty) database and look like data loss.
-    url: jdbc:h2:file:${user.home}/.savingbuddy/db/savingbuddy;MODE=PostgreSQL;AUTO_SERVER=TRUE
+    #
+    # Deliberately NOT AUTO_SERVER=TRUE. That flag makes H2 open a TCP listener on
+    # ALL interfaces so other processes can share the file — and the credentials
+    # beside it are sa with an empty password, so anyone on the same network could
+    # read the database directly, going around the entire auth layer. Binding
+    # Tomcat to 127.0.0.1 does not constrain it. To inspect the database, stop the
+    # app first and open the file directly.
+    url: jdbc:h2:file:${user.home}/.savingbuddy/db/savingbuddy;MODE=PostgreSQL
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
