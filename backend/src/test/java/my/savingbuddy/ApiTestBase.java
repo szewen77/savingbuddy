@@ -89,6 +89,19 @@ public abstract class ApiTestBase {
             .contentType(MediaType.APPLICATION_JSON).content(json));
     }
 
+    protected ResultActions doDelete(String url) throws Exception {
+        return mvc.perform(delete(url).session(session).with(csrf()));
+    }
+
+    protected ResultActions doDelete(MockHttpSession as, String url) throws Exception {
+        return mvc.perform(delete(url).session(as).with(csrf()));
+    }
+
+    protected ResultActions doPut(MockHttpSession as, String url, String json) throws Exception {
+        return mvc.perform(put(url).session(as).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
     // ---- The same, as a specific user (for isolation tests) ----
 
     protected ResultActions doGet(MockHttpSession as, String url) throws Exception {

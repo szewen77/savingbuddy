@@ -228,6 +228,10 @@ transactions on read, so the numbers cannot drift from the ledger.
 | `POST` | `/api/setup`            | First-run configuration — plan and accounts |
 | `GET`  | `/api/settings`         | Current plan and accounts, with per-account usage |
 | `PUT`  | `/api/settings`         | Edit the plan and accounts |
+| `POST` | `/api/goals`            | Create a savings goal |
+| `PUT`  | `/api/goals/{id}`       | Edit a goal (clears accumulated delay) |
+| `DELETE` | `/api/goals/{id}`     | Delete a goal |
+| `POST` | `/api/auth/password`    | Change password, evicting other sessions |
 | `GET`  | `/api/export`           | The whole database as a downloadable JSON file |
 
 Amounts are plain JSON numbers in MYR. Validation failures return `400` with

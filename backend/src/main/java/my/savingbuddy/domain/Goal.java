@@ -76,6 +76,29 @@ public class Goal {
 
     public void delayBy(int months) { this.delayMonths = Math.min(monthsAtPace(), this.delayMonths + months); }
 
+    /**
+     * Applies an edit.
+     *
+     * <p>delayMonths resets to zero: it records slippage against a plan, and this
+     * IS a new plan. Carrying it over would also let it exceed monthsAtPace if the
+     * monthly contribution rose, which would strand the goal permanently on hold —
+     * delayBy clamps on write, but nothing re-clamps on read.
+     */
+    public void update(String name, String description, BigDecimal target, BigDecimal saved,
+                       BigDecimal monthly, YearMonth targetMonth, boolean priority) {
+        this.name = name;
+        this.description = description;
+        this.target = target;
+        this.saved = saved;
+        this.monthly = monthly;
+        this.targetMonth = targetMonth;
+        this.priority = priority;
+        this.delayMonths = 0;
+    }
+
+    /** Demoted when another goal of the same user is promoted — only one may be priority. */
+    public void demote() { this.priority = false; }
+
     public Long getId() { return id; }
     public Long getUserId() { return userId; }
     public String getName() { return name; }

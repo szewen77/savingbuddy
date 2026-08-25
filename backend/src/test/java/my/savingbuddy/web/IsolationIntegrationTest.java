@@ -102,7 +102,8 @@ class IsolationIntegrationTest extends ApiTestBase {
     @Test
     void aGoalLessUserCanStillBuyAndWait() throws Exception {
         // buy() used to 404 before recording anything, so "Buy Anyway" was dead
-        // for any user without goals — a permanent state, since nothing creates goals.
+        // for any user without goals — which every new account was, until
+        // POST /api/goals existed. Bob still has none, so this covers that path.
         doPost(bob, "/api/afford/buy", "{\"amount\":20}")
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.transaction.amount").value(20.00))

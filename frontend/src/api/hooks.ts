@@ -54,6 +54,24 @@ export function useWaitAndSave() {
   return useMutation({ mutationFn: api.affordWait, onSuccess: invalidate })
 }
 
+export function useCreateGoal() {
+  const invalidate = useInvalidateAll()
+  return useMutation({ mutationFn: api.createGoal, onSuccess: invalidate })
+}
+
+export function useUpdateGoal() {
+  const invalidate = useInvalidateAll()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: import('./types').GoalRequest }) => api.updateGoal(id, body),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteGoal() {
+  const invalidate = useInvalidateAll()
+  return useMutation({ mutationFn: api.deleteGoal, onSuccess: invalidate })
+}
+
 export function useSaveSettings() {
   const invalidate = useInvalidateAll()
   return useMutation({ mutationFn: api.saveSettings, onSuccess: invalidate })

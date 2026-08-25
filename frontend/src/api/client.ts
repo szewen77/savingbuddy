@@ -1,6 +1,6 @@
 import type {
   Activity, AddExpenseRequest, AddExpenseResponse, AffordPreview, ApiError, AuthUser, BuyResponse,
-  Insights, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
+  Goal, GoalRequest, Insights, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
 } from './types'
 
 export class HttpError extends Error {
@@ -34,6 +34,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
 const put = (body: unknown): RequestInit => ({ method: 'PUT', body: JSON.stringify(body) })
+const del = (): RequestInit => ({ method: 'DELETE' })
 
 export const api = {
   me: () => request<AuthUser>('/api/auth/me'),
@@ -45,6 +46,9 @@ export const api = {
   summary: () => request<Summary>('/api/summary'),
   settings: () => request<Settings>('/api/settings'),
   saveSettings: (body: SettingsRequest) => request<Settings>('/api/settings', put(body)),
+  createGoal: (body: GoalRequest) => request<Goal>('/api/goals', json(body)),
+  updateGoal: (id: number, body: GoalRequest) => request<Goal>(`/api/goals/${id}`, put(body)),
+  deleteGoal: (id: number) => request<void>(`/api/goals/${id}`, del()),
   activity: (kind?: TransactionKind) =>
     request<Activity>(kind ? `/api/transactions?kind=${kind}` : '/api/transactions'),
   insights: () => request<Insights>('/api/insights'),

@@ -221,4 +221,15 @@ export interface SettingsRequest extends SettingsPlan {
   accounts: SettingsAccountUpdate[]
 }
 
+export interface GoalRequest {
+  name: string
+  description: string
+  target: number
+  saved: number
+  monthly: number
+  /** YYYY-MM */
+  targetMonth: string
+  priority: boolean
+}
+
 export interface ApiError { message: string; errors: string[] }

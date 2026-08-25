@@ -2,6 +2,8 @@ package my.savingbuddy.api;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -273,6 +275,23 @@ public final class Dtos {
         @NotNull @PositiveOrZero @DecimalMax("9999999") BigDecimal savingsTarget,
         @NotNull @Positive @DecimalMax("9999999") BigDecimal spendingAllowance,
         @NotEmpty List<@Valid SettingsAccountUpdate> accounts
+    ) {}
+
+    // ---- Goals ----
+
+    /**
+     * Create/update payload. delayMonths and sortOrder are absent deliberately —
+     * both are server-owned, and sortOrder is load-bearing in flexibleGoal's
+     * tie-break, so a client must not be able to steer which goal absorbs a purchase.
+     */
+    public record GoalRequest(
+        @NotBlank @Size(max = 60) String name,
+        @Size(max = 200) String description,
+        @NotNull @DecimalMin("1") @DecimalMax("9999999") BigDecimal target,
+        @NotNull @PositiveOrZero @DecimalMax("9999999") BigDecimal saved,
+        @NotNull @DecimalMin("1") @DecimalMax("9999999") BigDecimal monthly,
+        @NotNull @Pattern(regexp = "\\d{4}-(0[1-9]|1[0-2])", message = "must be a month like 2027-03") String targetMonth,
+        boolean priority
     ) {}
 
     // ---- Export ----
