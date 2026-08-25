@@ -19,6 +19,15 @@ const fill = async (label: string, value: string) => {
 }
 
 describe('Onboarding', () => {
+  it('offers a way out, so a fresh account is not a dead end', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ email: 'new@example.com' }) })
+    renderApp(<Onboarding />)
+    const signOut = await screen.findByRole('button', { name: 'Sign out' })
+    await userEvent.click(signOut)
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' })))
+  })
+
   it('blocks submission until the essentials are present', async () => {
     renderApp(<Onboarding />)
     const submit = screen.getByRole('button', { name: 'Start tracking' })
@@ -59,7 +68,10 @@ describe('Onboarding', () => {
     await userEvent.click(submit)
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/setup', expect.objectContaining({ method: 'POST' })))
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    // Find the setup call by URL: the screen also fetches /api/auth/me, so
+    // indexing into calls[0] would depend on unrelated request ordering.
+    const setupCall = fetchMock.mock.calls.find((c) => c[0] === '/api/setup')!
+    const body = JSON.parse(setupCall[1].body)
     expect(body.ownerName).toBe('Amir')
     expect(body.spendingAllowance).toBe(2500)
     expect(body.accounts).toHaveLength(2)

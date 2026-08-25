@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useConfigure } from '@/api/hooks'
+import { useConfigure, useLogout, useMe } from '@/api/hooks'
 import type { AccountKind, SetupAccount } from '@/api/types'
 import { HttpError } from '@/api/client'
 import { parseAmount, rm } from '@/lib/format'
@@ -14,6 +14,25 @@ const BLANK: DraftAccount[] = [
   { code: '', name: '', kind: 'SAVINGS', balance: '' },
   { code: '', name: '', kind: 'SPENDING', balance: '' },
 ]
+
+/** Who you are, and a way out — otherwise a fresh account is a dead end. */
+function SignedInAs() {
+  const me = useMe()
+  const logout = useLogout()
+  return (
+    <div className="flex items-center gap-3 text-[11.5px]">
+      <span className="hidden text-ink/45 sm:inline">{me.data?.email}</span>
+      <button
+        type="button"
+        onClick={() => logout.mutate()}
+        disabled={logout.isPending}
+        className="font-semibold text-ink/45 transition-colors hover:text-clay"
+      >
+        {logout.isPending ? 'Signing out…' : 'Sign out'}
+      </button>
+    </div>
+  )
+}
 
 export function Onboarding() {
   const configure = useConfigure()
@@ -74,7 +93,10 @@ export function Onboarding() {
   return (
     <div className="min-h-screen bg-canvas px-5 py-10">
       <div className="mx-auto flex max-w-[720px] flex-col gap-6">
-        <Logo />
+        <div className="flex items-center justify-between gap-4">
+          <Logo />
+          <SignedInAs />
+        </div>
 
         <div>
           <h1 className="text-[26px] font-semibold tracking-[-0.3px]">Let's set up your month</h1>
@@ -205,7 +227,7 @@ export function Onboarding() {
         </button>
 
         <p className="pb-4 text-center text-[11.5px] text-ink/40">
-          Everything stays on this machine. Nothing is sent anywhere.
+          This plan belongs to your account. Nobody else can see it.
         </p>
       </div>
     </div>
