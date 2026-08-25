@@ -61,7 +61,18 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public AuthUser register(@Valid @RequestBody RegisterRequest req,
                              HttpServletRequest request, HttpServletResponse response) {
-        AuthUser created = auth.register(req.email(), req.password(), req.signupCode());
+        // Registration is throttled on the same budget as login. Without this a
+        // signup code could be brute-forced, and the "email already exists"
+        // conflict below is an unlimited enumeration oracle.
+        String ip = request.getRemoteAddr();
+        rateLimiter.checkAllowed(ip, req.email());
+        AuthUser created;
+        try {
+            created = auth.register(req.email(), req.password(), req.signupCode());
+        } catch (RuntimeException e) {
+            rateLimiter.recordFailure(ip, req.email());
+            throw e;
+        }
         // Registering is also logging in — nobody wants to type the password twice.
         establishSession(req.email().trim().toLowerCase(), req.password(), request, response);
         return created;

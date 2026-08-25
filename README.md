@@ -169,6 +169,107 @@ hardened. It defaults to `false` locally (loopback is plain HTTP) and `true`
 under the `postgres` profile. Both cookies are `SameSite=Lax`; only the session
 cookie is `HttpOnly`, since the SPA has to read the CSRF token to echo it back.
 
+## Deploying
+
+> Verified end to end against PostgreSQL 17.11: fresh database, least-privilege
+> role, gated first user. The traps below are ones this procedure actually hit.
+
+### 1. Database and role
+
+```bash
+psql -U postgres -d postgres <<'SQL'
+CREATE ROLE savingbuddy_app LOGIN PASSWORD '<a-real-secret>';
+CREATE DATABASE savingbuddy OWNER savingbuddy_app;
+REVOKE ALL ON DATABASE savingbuddy FROM PUBLIC;
+GRANT CONNECT ON DATABASE savingbuddy TO savingbuddy_app;
+SQL
+psql -U postgres -d savingbuddy -c "REVOKE ALL ON SCHEMA public FROM PUBLIC;" \
+                                 -c "ALTER SCHEMA public OWNER TO savingbuddy_app;"
+```
+
+The app role owns the schema because Flyway needs DDL rights at migration time.
+A separate migration role is the stricter pattern, but at one deployment it buys
+little and adds a credential to manage. Create nothing else — Flyway builds every
+table on first boot.
+
+*If you use the `postgres` Docker image:* wait for `database system is ready to
+accept connections` to appear **twice** in the logs. `pg_isready` returns true
+against the temporary initialisation server, and anything you create against it
+is discarded when the real server starts.
+
+### 2. Generate a signup code
+
+```bash
+LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32
+```
+
+Registration is gated (see [Who can create an account](#who-can-create-an-account)).
+Set this before first boot — there is no bootstrap exemption, deliberately.
+
+### 3. Run it
+
+```bash
+SPRING_PROFILES_ACTIVE=postgres \
+DATABASE_URL=jdbc:postgresql://db-host:5432/savingbuddy \
+DATABASE_USERNAME=savingbuddy_app \
+DATABASE_PASSWORD='<a-real-secret>' \
+REGISTRATION_CODE='<the-32-char-code>' \
+SERVER_ADDRESS=127.0.0.1 \
+FORWARD_HEADERS_STRATEGY=native \
+java -jar savingbuddy-api-0.1.0-SNAPSHOT.jar
+```
+
+| Variable | Why it matters |
+| -------- | -------------- |
+| `SPRING_PROFILES_ACTIVE=postgres` | **The most dangerous omission.** Without it the app boots perfectly on H2 in the container's filesystem, with insecure cookies and no error anywhere. Check the startup log says `PostgreSQL`. |
+| `DATABASE_PASSWORD` | Defaults to empty. Against a permissive `pg_hba.conf` an empty password connects and looks fine. |
+| `REGISTRATION_CODE` | Required under this profile. The app refuses to start without it rather than deploying open. |
+| `SERVER_ADDRESS` | Set to `127.0.0.1` when TLS terminates on the same host, so nothing can reach the app past the proxy. |
+| `FORWARD_HEADERS_STRATEGY` | See below — wrong either way is bad. |
+
+### 4. TLS, and the proxy trap
+
+The app speaks plain HTTP. Terminate TLS in front of it (nginx, Caddy, a managed
+load balancer) and forward to the app port.
+
+`FORWARD_HEADERS_STRATEGY` has no safe default:
+
+- **`none`** — every client appears to come from the proxy, so they all share one
+  rate-limit bucket and about twenty bad passwords locks out everybody. It also
+  drops HSTS, since Spring only emits it when the request is seen as secure.
+- **`native`** (recommended, with a proxy) — honours `X-Forwarded-*`. Tomcat trusts
+  private ranges by default, so **only use it when a proxy you control is the
+  only thing that can reach the app**. That is what `SERVER_ADDRESS=127.0.0.1`
+  buys you; without it, a forged header bypasses the IP throttle.
+
+Serve the app on one origin. There is no CORS configuration and none is needed —
+the JAR serves the API and the SPA together.
+
+### 5. Create the first user
+
+Open the site and register with the signup code. It is an ordinary registration:
+no special first-user path, because "open until someone signs up" is a race
+between you and whoever else finds the URL.
+
+Then close the door:
+
+```bash
+REGISTRATION_MODE=closed   # restart; no new accounts, code or not
+```
+
+### 6. Backups — you must set these up
+
+`savingbuddy.backup.mode` is `none` under this profile and the app will not
+pretend otherwise. **Nothing backs the database up until you arrange it.**
+
+```bash
+pg_dump -Fc -U savingbuddy_app savingbuddy > savingbuddy-$(date +%F).dump
+```
+
+Schedule it, keep a retention window, store it off the database host — and
+restore one into a scratch database before you rely on it. A restore from
+PostgreSQL has never been exercised here; the tested restore path is the H2 one.
+
 ## Login throttling
 
 Failed sign-ins are rate limited per IP (20 / 15 min) and per email (5 / 15 min),
@@ -194,6 +295,22 @@ on every push and pull request:
 | **Backend tests** | JUnit via Maven. Also the schema guard — Hibernate validates against the Flyway-built schema, so an entity changed without a matching migration fails here instead of on a real database. |
 | **Frontend tests** | `npm ci`, `tsc -b`, Vitest. |
 | **Package JAR** | Builds the real shipping artifact, asserts the React bundle actually landed inside the JAR, boots it, and checks the API and UI both answer. The runnable JAR is uploaded as a build artifact. |
+
+## Who can create an account
+
+`savingbuddy.registration.mode`:
+
+| mode | meaning |
+| ---- | ------- |
+| `open` | Anyone may register. The default **only** for the local profile, which binds `127.0.0.1` — there is no "anyone who finds the URL". |
+| `code` | A shared signup code is required. The default under `postgres`, and it refuses to start without `REGISTRATION_CODE`. |
+| `closed` | No new accounts. |
+
+An **absent** mode means `closed`, not `open` — an unset gate must never mean an
+open door. Wrong, blank and absent codes all return the same 403, since
+distinguishing them tells a prober exactly what stands between them and an
+account. Registration shares the login throttle, so the code cannot be
+brute-forced. Changing the mode never affects existing users signing in.
 
 ## Typography
 

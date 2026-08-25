@@ -58,6 +58,19 @@ class RegistrationCodeGateTest extends ApiTestBase {
     }
 
     @Test
+    void guessingTheCodeIsThrottled() throws Exception {
+        // A gate that can be hammered is not a gate. Registration shares the
+        // login budget, so repeated wrong codes stop being answered.
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/api/auth/register").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(body("guess@example.com", "wrong-guess-" + i)));
+        }
+        mvc.perform(post("/api/auth/register").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(body("guess@example.com", CODE)))
+            .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
     void loginIsUntouchedByTheGate() throws Exception {
         mvc.perform(post("/api/auth/register").with(csrf())
             .contentType(MediaType.APPLICATION_JSON).content(body("existing@example.com", CODE)));
