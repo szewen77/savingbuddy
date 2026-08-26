@@ -65,6 +65,9 @@ public class SecurityConfig {
                 // /registration is readable anonymously: a signed-out visitor is exactly
                 // who needs it, to know whether to show a code field or hide sign-up.
                 .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/registration").permitAll()
+                // Platform health probe. Unauthenticated by necessity — the checker
+                // has no credentials — and it exposes nothing but up/down.
+                .requestMatchers("/healthz").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll())
             .exceptionHandling(ex -> ex

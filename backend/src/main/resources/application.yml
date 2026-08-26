@@ -83,13 +83,25 @@ spring:
     activate:
       on-profile: postgres
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/savingbuddy}
-    username: ${DATABASE_USERNAME:savingbuddy}
-    password: ${DATABASE_PASSWORD:}
+    # No defaults, deliberately. A localhost fallback means a misconfigured
+    # deployment starts against the wrong database — or an empty one — instead of
+    # failing. Spring cannot resolve these placeholders when the variables are
+    # unset, so startup aborts naming the missing key.
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      # Free-tier Postgres has a small connection budget and the app is one small
+      # instance; a large idle pool wastes it. Supabase Nano allows 60 direct.
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: ${DB_POOL_MIN:1}
 server:
-  # A container or load balancer needs a reachable bind. This is only safe behind
-  # HTTPS and a trusted network boundary. If the TLS terminator is on the same
-  # host, set SERVER_ADDRESS=127.0.0.1 so the app is not reachable past it.
+  # The platform assigns the port. Spring does NOT read a bare PORT variable —
+  # its relaxed binding maps SERVER_PORT, not PORT — so this indirection is
+  # required, not decorative. Render defaults PORT to 10000.
+  port: ${PORT:8080}
+  # A container or load balancer needs a reachable bind, and Render fails the
+  # deploy outright if it cannot detect a port bound on 0.0.0.0.
   address: ${SERVER_ADDRESS:0.0.0.0}
   # Behind a proxy, getRemoteAddr() is the proxy's address, so every user shares
   # one rate-limit bucket. Only trust these headers when a proxy you control

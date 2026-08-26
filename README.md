@@ -169,6 +169,75 @@ hardened. It defaults to `false` locally (loopback is plain HTTP) and `true`
 under the `postgres` profile. Both cookies are `SameSite=Lax`; only the session
 cookie is `HttpOnly`, since the SPA has to read the CSRF token to echo it back.
 
+## Deploying to Render + Supabase (free tier)
+
+Verified locally end to end: the real Docker image, built and run with `PORT`
+set the way Render sets it, against a TLS-enabled PostgreSQL 17 with a fresh
+database — migrations applied, health check green, registration gated, and a
+`pg_dump` → drop → `pg_restore` drill completed.
+
+### Why these specific connection settings
+
+**Use Supabase's Session pooler**, port 5432:
+
+- The **direct** connection (`db.<ref>.supabase.co`) is IPv6-only on free
+  projects, and Render has no IPv6 — it is simply unreachable.
+- The **transaction** pooler (port 6543) does not support prepared statements,
+  which Hibernate relies on, and it breaks Flyway's session-scoped locking.
+- The **session** pooler behaves like a direct connection for both, over IPv4.
+
+Note the username is `postgres.<project-ref>`, not `postgres`.
+
+### What you set on Render
+
+`render.yaml` declares the service. Every secret is `sync: false`, so Render
+prompts for it and it never enters git:
+
+| Variable | Set where | Value |
+| -------- | --------- | ----- |
+| `SPRING_PROFILES_ACTIVE` | blueprint | `postgres` |
+| `DATABASE_URL` | **prompt** | `jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require` |
+| `DATABASE_USERNAME` | **prompt** | `postgres.<project-ref>` |
+| `DATABASE_PASSWORD` | **prompt** | your Supabase database password |
+| `REGISTRATION_CODE` | **prompt** | 16+ random characters |
+| `REGISTRATION_MODE` | blueprint | `code` |
+| `FORWARD_HEADERS_STRATEGY` | blueprint | `native` |
+| `SECURE_COOKIES` | blueprint | `true` |
+| `SERVER_ADDRESS` | blueprint | `0.0.0.0` |
+
+Two traps worth knowing:
+
+- **`plan: free` is written explicitly** in `render.yaml`. Omitting `plan`
+  provisions a billable Starter instance.
+- **Render only prompts for `sync: false` variables when the Blueprint is first
+  created.** Adding a secret later means setting it by hand in the dashboard.
+
+### What the free tier does not give you
+
+- **No automatic backups on Supabase free.** `savingbuddy.backup.mode` is `none`
+  and the app says so rather than pretending. Until you schedule `pg_dump`,
+  nothing is backed up.
+- **Supabase pauses a free project after ~1 week of inactivity**, and **Render
+  free spins down after 15 minutes idle** with roughly a minute of cold start.
+- **The filesystem is ephemeral.** Nothing may be written to disk and expected to
+  survive — which is exactly why the database is external.
+
+### Backups you must set up yourself
+
+```bash
+pg_dump -Fc "postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres" \
+  > savingbuddy-$(date +%F).dump
+```
+
+Restore, verified working:
+
+```bash
+pg_restore --no-owner -d "<connection-string>" savingbuddy-<date>.dump
+```
+
+A restore returns the database to the moment of the dump; anything recorded
+since is gone. That was confirmed in the drill, not assumed.
+
 ## Deploying
 
 > Verified end to end against PostgreSQL 17.11: fresh database, least-privilege

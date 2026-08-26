@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+my.savingbuddy.config.RequiredDeploymentSettings

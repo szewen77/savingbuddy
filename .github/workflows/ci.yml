@@ -140,3 +140,61 @@ jobs:
         with:
           name: savingbuddy-jar
           path: backend/target/*.jar
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Render builds this exact Dockerfile. Building it here means a broken
+      # image fails on push, not halfway through a deploy.
+      - name: Build image
+        run: docker build -t savingbuddy:ci .
+
+      - name: Boot it against a throwaway Postgres
+        run: |
+          docker network create ci-net
+          docker run -d --name ci-db --network ci-net \
+            -e POSTGRES_PASSWORD=ci -e POSTGRES_USER=ci -e POSTGRES_DB=savingbuddy \
+            postgres:17-alpine
+          # The postgres image reports ready once against its temporary init
+          # server; wait for the second, real one.
+          for i in $(seq 1 60); do
+            [ "$(docker logs ci-db 2>&1 | grep -c 'ready to accept connections')" -ge 2 ] && break
+            sleep 2
+          done
+
+          # PORT is set the way Render sets it, to prove the app honours it.
+          docker run -d --name ci-app --network ci-net -p 10000:10000 \
+            -e PORT=10000 \
+            -e SPRING_PROFILES_ACTIVE=postgres \
+            -e DATABASE_URL='jdbc:postgresql://ci-db:5432/savingbuddy' \
+            -e DATABASE_USERNAME=ci -e DATABASE_PASSWORD=ci \
+            -e REGISTRATION_MODE=code -e REGISTRATION_CODE=a-very-long-signup-code \
+            savingbuddy:ci
+
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:10000/healthz || true)
+            [ "$code" = "200" ] && break
+            sleep 3
+          done
+          docker logs ci-app
+          test "$code" = "200" || { echo "::error::container did not become healthy on PORT=10000"; exit 1; }
+
+          # Registration must be gated, not accidentally open.
+          mode=$(curl -s http://localhost:10000/api/auth/registration)
+          echo "$mode" | grep -q '"code"' || { echo "::error::registration not gated: $mode"; exit 1; }
+          echo "Image boots on PORT, migrates a fresh database, and gates registration."
+
+      - name: Missing database config must fail fast
+        run: |
+          # A deployment that forgets DATABASE_URL must refuse to start rather
+          # than silently falling back to a local database.
+          set +e
+          out=$(docker run --rm -e SPRING_PROFILES_ACTIVE=postgres savingbuddy:ci 2>&1)
+          status=$?
+          set -e
+          test $status -ne 0 || { echo "::error::app started without database config"; exit 1; }
+          echo "$out" | grep -q "DATABASE_URL" || { echo "::error::failure did not name the missing variable"; exit 1; }
+          echo "Fails fast and names the missing variable."

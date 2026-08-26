@@ -10,9 +10,11 @@ target/
 # builds used a relative path — keep this so a stray one is never committed)
 data/
 
-# Local env and editor noise
-.env.local
+# Local env and editor noise — secrets never enter git.
+# .env.example is the committed template and holds no real values.
 .env
+.env.*
+!.env.example
 .DS_Store
 .idea/
 *.iml
