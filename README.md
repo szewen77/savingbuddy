@@ -120,19 +120,21 @@ never runs on a normal launch.
 ### Upgrading from a pre-auth install
 
 The V2 migration adopts an existing single-user database instead of abandoning
-it: all data is assigned to a user **owner@localhost** with the password
-**savingbuddy**. Sign in with that and everything is where you left it. Change
-the password before ever exposing the app beyond localhost (a password-change
-endpoint is on the follow-up list; until then, re-register and export/import,
-or update the hash directly).
-
-### Tests
+it, rather than making you start over. Its rows are assigned to a user
+**owner@localhost** whose initial password is **savingbuddy** — a known,
+documented value, so **rotate it the first time you sign in**:
 
 ```bash
-npm test
+# after signing in, with the CSRF token echoed back as a header
+POST /api/auth/password  {"currentPassword": "...", "newPassword": "..."}
 ```
 
-Runs both suites — JUnit against the API, Vitest against the UI.
+Changing it also expires every other session for that user, so a rotation
+actually evicts anyone else holding one.
+
+This only affects databases that already had data before V2. A fresh install —
+including any deployment — creates no such user at all: the migration inserts it
+`where exists (select 1 from plan)`, and a new database has no plan.
 
 ## Running on PostgreSQL
 
