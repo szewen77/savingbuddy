@@ -21,7 +21,7 @@ SELECT c.relname AS table_name,
        (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid) AS policies
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public' AND c.relkind = 'r'
-ORDER BY c.relname;
+ORDER BY c.relrowsecurity, c.relname;
 
 \echo '=== VERDICT ==='
 SELECT CASE

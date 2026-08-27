@@ -14,8 +14,11 @@ BEGIN;
 DO $$
 DECLARE r record;
 BEGIN
+  -- Includes flyway_schema_history on purpose. It holds no financial data, but
+  -- excluding it made this script disagree with check-data-api-exposure.sql,
+  -- which reported EXPOSED for a table this one had deliberately skipped.
   FOR r IN SELECT tablename FROM pg_tables
-            WHERE schemaname = 'public' AND tablename <> 'flyway_schema_history'
+            WHERE schemaname = 'public'
   LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
   END LOOP;
