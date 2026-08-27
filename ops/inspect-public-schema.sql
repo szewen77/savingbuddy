@@ -44,6 +44,17 @@ SELECT e.extname FROM pg_extension e
 JOIN pg_namespace n ON n.oid = e.extnamespace
 WHERE n.nspname = 'public' ORDER BY 1;
 
+\echo '=== EVENT TRIGGERS (database-level; fire on CREATE TABLE, so they can act on migrations) ==='
+-- Not in pg_trigger: event triggers are database-wide and attached to no table,
+-- so the table-trigger query below cannot see them. Anything listed here runs
+-- while Flyway creates the schema.
+SELECT e.evtname AS event_trigger, e.evtevent AS fires_on, e.evtenabled AS enabled,
+       n.nspname || '.' || p.proname AS calls_function
+FROM pg_event_trigger e
+JOIN pg_proc p ON p.oid = e.evtfoid
+JOIN pg_namespace n ON n.oid = p.pronamespace
+ORDER BY e.evtname;
+
 \echo '=== Anything OUTSIDE public depending on public (triggers/policies on auth or storage) ==='
 SELECT DISTINCT tg.tgname AS trigger_name, cl.relname AS on_table, ns.nspname AS in_schema
 FROM pg_trigger tg
