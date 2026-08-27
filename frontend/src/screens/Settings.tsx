@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSaveSettings, useSettings } from '@/api/hooks'
+import { useCreateInvite, useInvites, useRegistrationStatus, useSaveSettings, useSettings } from '@/api/hooks'
 import { HttpError } from '@/api/client'
 import type { AccountKind, Settings as SettingsData } from '@/api/types'
 import { parseAmount, rm } from '@/lib/format'
@@ -52,6 +52,84 @@ function toDraft(s: SettingsData): Draft {
       removable: a.removable,
     })),
   }
+}
+
+/**
+ * Invitations. Shown only when the instance actually runs on them, so it does
+ * not advertise a door that is bolted shut.
+ */
+function Invites() {
+  const registration = useRegistrationStatus()
+  const invites = useInvites()
+  const create = useCreateInvite()
+  const [justCreated, setJustCreated] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  if (registration.data?.mode !== 'invite') return null
+
+  const copy = (token: string) => {
+    navigator.clipboard?.writeText(token)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Card className="flex flex-col gap-4 p-6">
+      <div>
+        <h2 className="text-[15px] font-semibold">Invite someone</h2>
+        <p className="mt-1 text-[12.5px] leading-[1.55] text-ink/55">
+          Each invite creates one account and then stops working. They get their own
+          private plan — nobody can see anyone else's money.
+        </p>
+      </div>
+
+      {justCreated && (
+        <div className="flex flex-col gap-2 rounded-2xl bg-sage/30 p-4">
+          <div className="text-[12px] font-semibold text-moss">
+            Copy this now — it is not shown again.
+          </div>
+          <code className="tnum break-all rounded-xl bg-paper px-3 py-2 text-[12.5px]">{justCreated}</code>
+          <button
+            type="button"
+            onClick={() => copy(justCreated)}
+            className="self-start text-[12px] font-semibold text-forest hover:underline"
+          >
+            {copied ? 'Copied' : 'Copy invite code'}
+          </button>
+        </div>
+      )}
+
+      {invites.data && invites.data.length > 0 && (
+        <div className="flex flex-col">
+          {invites.data.map((i) => (
+            <div key={i.id} className="flex items-center gap-3 border-b border-ink/7 py-2.5 last:border-0">
+              <span className={`h-2 w-2 flex-none rounded-full ${
+                i.status === 'PENDING' ? 'bg-forest' : i.status === 'USED' ? 'bg-ink/25' : 'bg-clay'
+              }`} />
+              <span className="flex-1 text-[12.5px]">
+                {i.status === 'USED' ? `Used by ${i.usedBy}`
+                  : i.status === 'EXPIRED' ? 'Expired'
+                  : `Waiting — expires ${new Date(i.expiresAt).toLocaleDateString()}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => create.mutate(undefined, { onSuccess: (i) => setJustCreated(i.token) })}
+        disabled={create.isPending}
+        className="self-start rounded-full border border-ink/14 px-4 py-2 text-[12.5px] font-semibold transition-colors hover:bg-ink/5"
+      >
+        {create.isPending ? 'Creating…' : 'Create an invite'}
+      </button>
+
+      {create.error instanceof HttpError && (
+        <div className="text-[12.5px] text-clay">{create.error.body?.message}</div>
+      )}
+    </Card>
+  )
 }
 
 export function Settings() {
@@ -249,6 +327,8 @@ export function Settings() {
           + Add another account
         </button>
       </Card>
+
+      <Invites />
 
       <Card className="flex flex-col gap-3 p-6">
         <h2 className="text-[15px] font-semibold">Your data</h2>

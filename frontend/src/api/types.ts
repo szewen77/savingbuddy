@@ -163,8 +163,18 @@ export interface Insights {
 
 export interface AuthUser { email: string }
 
-export type RegistrationMode = 'open' | 'code' | 'closed'
+export type RegistrationMode = 'open' | 'code' | 'closed' | 'invite'
 export interface RegistrationStatus { mode: RegistrationMode }
+
+export interface Invite {
+  id: number
+  /** Present only in the response that created it — never stored, never shown again. */
+  token: string | null
+  status: 'PENDING' | 'USED' | 'EXPIRED'
+  createdAt: string
+  expiresAt: string
+  usedBy: string | null
+}
 
 export interface SetupStatus { configured: boolean; ownerName: string | null }
 

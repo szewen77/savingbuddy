@@ -54,7 +54,12 @@ class RegistrationPolicyTest {
     @Test
     void theRequestDtoNeverPrintsItsSecrets() {
         String printed = new my.savingbuddy.api.Dtos.RegisterRequest(
-            "a@example.com", "hunter2-the-password", "the-signup-code").toString();
-        assertThat(printed).doesNotContain("hunter2-the-password").doesNotContain("the-signup-code");
+            "a@example.com", "hunter2-the-password", "the-signup-code", "the-invite-token").toString();
+        assertThat(printed)
+            .doesNotContain("hunter2-the-password")
+            .doesNotContain("the-signup-code")
+            // The invite token is a credential too — adding the field without
+            // adding it here would have leaked it into any log that prints the request.
+            .doesNotContain("the-invite-token");
     }
 }

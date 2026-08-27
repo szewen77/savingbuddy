@@ -68,7 +68,7 @@ public class AuthController {
         rateLimiter.checkAllowed(ip, req.email());
         AuthUser created;
         try {
-            created = auth.register(req.email(), req.password(), req.signupCode());
+            created = auth.register(req.email(), req.password(), req.signupCode(), req.inviteToken());
         } catch (RuntimeException e) {
             rateLimiter.recordFailure(ip, req.email());
             throw e;

@@ -15,6 +15,16 @@ export const keys = {
 export const useRegistrationStatus = () =>
   useQuery({ queryKey: ['registration'], queryFn: api.registrationStatus, staleTime: Infinity, retry: false })
 
+export const useInvites = () => useQuery({ queryKey: ['invites'], queryFn: api.invites })
+
+export function useCreateInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.createInvite,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invites'] }),
+  })
+}
+
 export const useMe = () =>
   useQuery({ queryKey: keys.me, queryFn: api.me, staleTime: Infinity, retry: false })
 
@@ -91,8 +101,9 @@ export function useLogin() {
 export function useRegister() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ email, password, signupCode }: { email: string; password: string; signupCode?: string }) =>
-      api.register(email, password, signupCode),
+    mutationFn: ({ email, password, signupCode, inviteToken }:
+      { email: string; password: string; signupCode?: string; inviteToken?: string }) =>
+      api.register(email, password, signupCode, inviteToken),
     onSuccess: () => qc.invalidateQueries(),
   })
 }

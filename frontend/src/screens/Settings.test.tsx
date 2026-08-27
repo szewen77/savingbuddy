@@ -34,6 +34,42 @@ const accountCards = () =>
   screen.queryAllByText('Account name').map((l) => l.closest('.rounded-2xl') as HTMLElement)
 
 describe('Settings', () => {
+  const withMode = (mode: string, invites: unknown[] = []) => (url: string) =>
+    url === '/api/auth/registration' ? Promise.resolve({ ok: true, status: 200, json: async () => ({ mode }) })
+      : url === '/api/invites' ? Promise.resolve({ ok: true, status: 200, json: async () => invites })
+      : Promise.resolve({ ok: true, status: 200, json: async () => settings })
+
+  it('hides invites entirely unless the instance runs on them', async () => {
+    fetchMock.mockImplementation(withMode('closed'))
+    renderApp(<Settings />)
+    await screen.findByText('About you')
+    expect(screen.queryByText('Invite someone')).not.toBeInTheDocument()
+  })
+
+  it('shows a new invite once, with a warning that it will not be shown again', async () => {
+    fetchMock.mockImplementation((url: string, init?: { method?: string }) =>
+      url === '/api/invites' && init?.method === 'POST'
+        ? Promise.resolve({ ok: true, status: 201, json: async () => ({
+            id: 1, token: 'the-secret-token', status: 'PENDING',
+            createdAt: '2026-08-27T00:00:00Z', expiresAt: '2026-09-10T00:00:00Z', usedBy: null }) })
+        : withMode('invite')(url))
+
+    renderApp(<Settings />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Create an invite' }))
+
+    expect(await screen.findByText('the-secret-token')).toBeInTheDocument()
+    expect(screen.getByText(/not shown again/)).toBeInTheDocument()
+  })
+
+  it('shows who used an invite', async () => {
+    fetchMock.mockImplementation(withMode('invite', [
+      { id: 1, token: null, status: 'USED', createdAt: '2026-08-01T00:00:00Z',
+        expiresAt: '2026-08-15T00:00:00Z', usedBy: 'friend@example.com' },
+    ]))
+    renderApp(<Settings />)
+    expect(await screen.findByText('Used by friend@example.com')).toBeInTheDocument()
+  })
+
   it('loads the current configuration into the form', async () => {
     renderApp(<Settings />)
     await waitFor(() => expect(field('Your name')).toHaveValue('Sze Yin'))

@@ -18,17 +18,24 @@ export function Auth() {
   const active = mode === 'login' ? login : register
 
   const needsCode = registration.data?.mode === 'code'
+  const needsInvite = registration.data?.mode === 'invite'
   const signupClosed = registration.data?.mode === 'closed'
   const canSubmit =
     email.trim().length > 3 &&
     password.length >= (mode === 'register' ? 8 : 1) &&
-    (mode === 'login' || !needsCode || signupCode.trim().length > 0) &&
+    (mode === 'login' || (!needsCode && !needsInvite) || signupCode.trim().length > 0) &&
     !active.isPending
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!canSubmit) return
-    active.mutate(mode === 'register' ? { email: email.trim(), password, signupCode: signupCode.trim() } : { email: email.trim(), password })
+    active.mutate(
+      mode === 'register'
+        ? needsInvite
+          ? { email: email.trim(), password, inviteToken: signupCode.trim() }
+          : { email: email.trim(), password, signupCode: signupCode.trim() }
+        : { email: email.trim(), password },
+    )
   }
 
   const serverError = active.error instanceof HttpError ? active.error.body?.message : null
@@ -71,8 +78,13 @@ export function Auth() {
               />
             </Field>
 
-            {mode === 'register' && needsCode && (
-              <Field label="Signup code" hint="This instance only accepts invited people.">
+            {mode === 'register' && (needsCode || needsInvite) && (
+              <Field
+                label={needsInvite ? 'Invite code' : 'Signup code'}
+                hint={needsInvite
+                  ? 'Paste the invite you were sent. Each one works once.'
+                  : 'This instance only accepts invited people.'}
+              >
                 <input
                   value={signupCode}
                   onChange={(e) => setSignupCode(e.target.value)}

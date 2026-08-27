@@ -18,19 +18,21 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
     private final RegistrationPolicy registrationPolicy;
+    private final InviteService invites;
 
     public AuthService(UserRepository users, PasswordEncoder passwordEncoder, Clock clock,
-                       RegistrationPolicy registrationPolicy) {
+                       RegistrationPolicy registrationPolicy, InviteService invites) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
         this.registrationPolicy = registrationPolicy;
+        this.invites = invites;
     }
 
     @Transactional
-    public AuthUser register(String email, String rawPassword, String signupCode) {
-        // Checked before any other work, and the signature carries the code so
-        // an ungated call path cannot compile.
+    public AuthUser register(String email, String rawPassword, String signupCode, String inviteToken) {
+        // Checked before any other work, and the signature carries the credentials
+        // so an ungated call path cannot compile.
         registrationPolicy.check(signupCode);
 
         String normalised = email.trim().toLowerCase();
@@ -38,6 +40,13 @@ public class AuthService {
             throw new EmailTakenException("An account with that email already exists");
         }
         User user = users.save(new User(normalised, passwordEncoder.encode(rawPassword), Instant.now(clock)));
+
+        // Claimed after the user exists, because the invite records who used it —
+        // and inside this transaction, so a rejected claim rolls the account back
+        // rather than leaving one created by an invalid invite.
+        if (registrationPolicy.mode() == RegistrationPolicy.Mode.INVITE) {
+            invites.claimFor(inviteToken, user.getId());
+        }
         return new AuthUser(user.getEmail());
     }
 

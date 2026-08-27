@@ -1,6 +1,6 @@
 import type {
   Activity, AddExpenseRequest, AddExpenseResponse, AffordPreview, ApiError, AuthUser, BuyResponse,
-  Goal, GoalRequest, Insights, RegistrationStatus, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
+  Goal, GoalRequest, Insights, Invite, RegistrationStatus, SavingPlan, Settings, SettingsRequest, SetupRequest, SetupStatus, Summary, TransactionKind,
 } from './types'
 
 export class HttpError extends Error {
@@ -40,8 +40,10 @@ export const api = {
   me: () => request<AuthUser>('/api/auth/me'),
   registrationStatus: () => request<RegistrationStatus>('/api/auth/registration'),
   login: (email: string, password: string) => request<AuthUser>('/api/auth/login', json({ email, password })),
-  register: (email: string, password: string, signupCode?: string) =>
-    request<AuthUser>('/api/auth/register', json({ email, password, signupCode })),
+  register: (email: string, password: string, signupCode?: string, inviteToken?: string) =>
+    request<AuthUser>('/api/auth/register', json({ email, password, signupCode, inviteToken })),
+  invites: () => request<Invite[]>('/api/invites'),
+  createInvite: () => request<Invite>('/api/invites', { method: 'POST' }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   setupStatus: () => request<SetupStatus>('/api/setup'),
   configure: (body: SetupRequest) => request<SetupStatus>('/api/setup', json(body)),

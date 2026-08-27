@@ -29,6 +29,12 @@ public class RegistrationPolicy {
         OPEN,
         /** A shared signup code is required. */
         CODE,
+        /**
+         * A single-use invite, created in-app by an existing user. The env code
+         * stops working. Cannot bootstrap an empty database — no users means no
+         * invites — so CODE remains the default for a fresh deployment.
+         */
+        INVITE,
         /** No new accounts. */
         CLOSED
     }
@@ -65,11 +71,15 @@ public class RegistrationPolicy {
 
     public Mode mode() { return mode; }
 
-    /** Throws unless this caller may create an account. */
+    /**
+     * Throws unless this caller may create an account with the shared code.
+     * INVITE mode is settled by InviteService instead, since it needs the database.
+     */
     public void check(String submittedCode) {
         switch (mode) {
             case OPEN -> { }
             case CLOSED -> throw new RegistrationNotAllowedException("Registration is closed on this instance.");
+            case INVITE -> { /* handled by the caller against the invites table */ }
             case CODE -> {
                 // One message for wrong, blank and absent alike: distinguishing
                 // them would confirm to a prober that a code gate is the only

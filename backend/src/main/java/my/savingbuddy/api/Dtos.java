@@ -211,14 +211,27 @@ public final class Dtos {
     public record RegisterRequest(
         @NotBlank @jakarta.validation.constraints.Email @Size(max = 255) String email,
         @NotBlank @Size(min = 8, max = 72) String password,
-        @Size(max = 200) String signupCode
+        @Size(max = 200) String signupCode,
+        @Size(max = 200) String inviteToken
     ) {
-        /** Redacted: the generated record toString would print the password and the code. */
+        /** Redacted: the generated record toString would print the password, the code and the token. */
         @Override
-        public String toString() { return "RegisterRequest[email=" + email + ", password=***, signupCode=***]"; }
+        public String toString() {
+            return "RegisterRequest[email=" + email + ", password=***, signupCode=***, inviteToken=***]";
+        }
     }
 
     public record RegistrationStatus(String mode) {}
+
+    /** {@code token} is populated only on creation — it is never stored, so it cannot be shown again. */
+    public record InviteDto(
+        Long id,
+        String token,
+        String status,
+        java.time.Instant createdAt,
+        java.time.Instant expiresAt,
+        String usedBy
+    ) {}
 
     /** Bounded deliberately: the email becomes a rate-limiter key, so an unbounded
      *  value would let an unauthenticated caller drive memory use. */
