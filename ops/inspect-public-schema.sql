@@ -3,17 +3,28 @@
 -- nothing there — so whatever appears below was created by you, a quickstart,
 -- the Table Editor, or an extension enabled into public.
 
-\echo '=== TABLES / VIEWS / SEQUENCES in public (with row counts) ==='
-SELECT c.relkind AS kind,
+\echo '=== TABLES in public, with EXACT row counts ==='
+-- Counted with count(*), not pg_stat_user_tables.n_live_tup. That column is a
+-- planner estimate: it drifts from the truth, and it reads 0 for any table
+-- autovacuum has not visited yet — which would report a populated table as
+-- empty, in a script whose whole purpose is deciding what is safe to drop.
+SELECT t.table_name,
+       (xpath('/row/c/text()',
+              query_to_xml(format('SELECT count(*) AS c FROM public.%I', t.table_name),
+                           false, true, '')))[1]::text::bigint AS exact_rows
+FROM information_schema.tables t
+WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+ORDER BY exact_rows DESC, t.table_name;
+
+\echo '=== VIEWS / SEQUENCES / OTHER relations in public ==='
+SELECT CASE c.relkind WHEN 'v' THEN 'view' WHEN 'm' THEN 'materialized view'
+                      WHEN 'S' THEN 'sequence' WHEN 'f' THEN 'foreign table'
+                      WHEN 'p' THEN 'partitioned table' END AS kind,
        c.relname AS name,
-       pg_catalog.pg_get_userbyid(c.relowner) AS owner,
-       CASE WHEN c.relkind IN ('r','p')
-            THEN (SELECT n_live_tup FROM pg_stat_user_tables s
-                   WHERE s.relid = c.oid)
-       END AS approx_rows
+       pg_catalog.pg_get_userbyid(c.relowner) AS owner
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','S','f')
+WHERE n.nspname = 'public' AND c.relkind IN ('v','m','S','f','p')
 ORDER BY c.relkind, c.relname;
 
 \echo '=== FUNCTIONS in public ==='
