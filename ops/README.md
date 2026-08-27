@@ -82,16 +82,29 @@ Successfully applied 2 migrations
 Then confirm: `/healthz` returns 200, `/api/auth/registration` returns
 `{"mode":"code"}`, and the `users` table is empty.
 
-## Alternative: give the app its own schema
+## Restoring RLS protection afterward
 
-If you would rather not drop anything, point the app at a dedicated schema and
-leave `public` alone entirely — no deletion, and Supabase's metadata untouched:
+If the inspection found a `rls_auto_enable` function driven by an `ensure_rls`
+event trigger, dropping it is what unblocks Flyway — a function alone counts as a
+non-empty schema. Put the protection back after the first successful deploy:
 
+```bash
+psql "$SUPABASE_CONNECTION_STRING" -f ops/restore-rls-protection.sql
 ```
-SPRING_FLYWAY_SCHEMAS=savingbuddy
-SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA=savingbuddy
-```
 
-Flyway creates the schema if missing. This is the safest option when `public`
-holds anything you are unsure about. It is **not** currently exercised by the
-test suite, so verify it on a scratch database before relying on it.
+It enables RLS on the tables that now exist *and* recreates the trigger for
+future ones. The event trigger only fires on `CREATE TABLE`, so it would never
+have covered tables created while it was absent.
+
+This does not affect the app: it owns these tables, and a table owner bypasses
+RLS. What it protects against is Supabase's Data API roles (`anon`,
+`authenticated`) reading the data over HTTP — check with
+`ops/check-data-api-exposure.sql`.
+
+### Not recommended: a dedicated schema
+
+Pointing Flyway and Hibernate at their own schema looks like it would sidestep
+all of this without deleting anything. It was tested and it does not work as
+written: Flyway migrates into the new schema fine, then Hibernate fails with
+`Schema validation: missing table [accounts]`, because
+`spring.jpa.properties.hibernate.default_schema` does not steer validation.
