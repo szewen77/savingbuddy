@@ -17,6 +17,14 @@ export const useRegistrationStatus = () =>
 
 export const useInvites = () => useQuery({ queryKey: ['invites'], queryFn: api.invites })
 
+export function useSetRegistrationMode() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.setRegistrationMode,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['registration'] }),
+  })
+}
+
 export function useCreateInvite() {
   const qc = useQueryClient()
   return useMutation({

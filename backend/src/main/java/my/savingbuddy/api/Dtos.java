@@ -223,6 +223,8 @@ public final class Dtos {
 
     public record RegistrationStatus(String mode) {}
 
+    public record RegistrationModeRequest(@NotBlank String mode) {}
+
     /** {@code token} is populated only on creation — it is never stored, so it cannot be shown again. */
     public record InviteDto(
         Long id,

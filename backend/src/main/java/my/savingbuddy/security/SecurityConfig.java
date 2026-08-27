@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -64,7 +65,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // /registration is readable anonymously: a signed-out visitor is exactly
                 // who needs it, to know whether to show a code field or hide sign-up.
-                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/registration").permitAll()
+                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                // GET only. A bare path matcher would also permit the PUT that
+                // changes this setting, letting an anonymous caller open the door.
+                .requestMatchers(HttpMethod.GET, "/api/auth/registration").permitAll()
                 // Platform health probe. Unauthenticated by necessity — the checker
                 // has no credentials — and it exposes nothing but up/down.
                 .requestMatchers("/healthz").permitAll()

@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import my.savingbuddy.api.Dtos;
 import my.savingbuddy.api.Dtos.AuthUser;
 import my.savingbuddy.api.Dtos.ChangePasswordRequest;
 import my.savingbuddy.api.Dtos.LoginRequest;
@@ -11,6 +12,7 @@ import my.savingbuddy.api.Dtos.RegisterRequest;
 import my.savingbuddy.api.Dtos.RegistrationStatus;
 import my.savingbuddy.security.CurrentUser;
 import my.savingbuddy.security.RegistrationPolicy;
+import my.savingbuddy.service.RegistrationModeService;
 import my.savingbuddy.security.LoginRateLimiter;
 import my.savingbuddy.service.AuthService;
 import org.springframework.http.HttpStatus;
@@ -34,17 +36,20 @@ public class AuthController {
     private final SessionRegistry sessionRegistry;
     private final LoginRateLimiter rateLimiter;
     private final RegistrationPolicy registrationPolicy;
+    private final RegistrationModeService modes;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
     public AuthController(AuthService auth, AuthenticationManager authenticationManager,
                           CurrentUser currentUser, SessionRegistry sessionRegistry,
-                          LoginRateLimiter rateLimiter, RegistrationPolicy registrationPolicy) {
+                          LoginRateLimiter rateLimiter, RegistrationPolicy registrationPolicy,
+                          RegistrationModeService modes) {
         this.auth = auth;
         this.authenticationManager = authenticationManager;
         this.currentUser = currentUser;
         this.sessionRegistry = sessionRegistry;
         this.rateLimiter = rateLimiter;
         this.registrationPolicy = registrationPolicy;
+        this.modes = modes;
     }
 
     /**
@@ -54,7 +59,23 @@ public class AuthController {
      */
     @GetMapping("/registration")
     public RegistrationStatus registrationStatus() {
-        return new RegistrationStatus(registrationPolicy.mode().name().toLowerCase());
+        return new RegistrationStatus(modes.current().name().toLowerCase());
+    }
+
+    /**
+     * Changes who may register, from the app. Authenticated by the /api/** rule —
+     * an anonymous caller must never be able to open the door.
+     */
+    @PutMapping("/registration")
+    public RegistrationStatus setRegistrationMode(@Valid @RequestBody Dtos.RegistrationModeRequest req) {
+        RegistrationPolicy.Mode mode;
+        try {
+            mode = RegistrationPolicy.Mode.valueOf(req.mode().trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new my.savingbuddy.service.SetupService.InvalidSetupException(
+                "Unknown registration mode: " + req.mode());
+        }
+        return new RegistrationStatus(modes.set(mode).name().toLowerCase());
     }
 
     @PostMapping("/register")

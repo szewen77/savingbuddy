@@ -76,6 +76,11 @@ public class RegistrationPolicy {
      * INVITE mode is settled by InviteService instead, since it needs the database.
      */
     public void check(String submittedCode) {
+        checkAs(mode, submittedCode);
+    }
+
+    /** Same rules, against a mode resolved elsewhere (the database, at runtime). */
+    public void checkAs(Mode mode, String submittedCode) {
         switch (mode) {
             case OPEN -> { }
             case CLOSED -> throw new RegistrationNotAllowedException("Registration is closed on this instance.");

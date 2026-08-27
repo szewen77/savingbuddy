@@ -369,6 +369,27 @@ on every push and pull request:
 
 ## Who can create an account
 
+Controlled **from the app**, in Settings — not from a host environment variable.
+The env var only supplies the starting value, so a fresh deployment is
+fail-closed until someone signs in and chooses.
+
+| In Settings | Effect |
+| ----------- | ------ |
+| **Turn on invitations** | Any signed-in user can mint single-use invite codes |
+| **Close registration** | No new accounts |
+
+Each invite admits exactly one account and expires after 14 days. Only its
+SHA-256 digest is stored, so the code is shown once at creation and cannot be
+recovered afterwards — the UI says so.
+
+`open` and `code` remain host-configured and are deliberately **not** selectable
+from the UI: `open` is only safe on a loopback-bound local instance, and `code`
+needs a secret the app cannot supply. `code` still exists because it is the only
+mode that can bootstrap an empty database — minting an invite requires an
+account, and a fresh deployment has none.
+
+## Who can create an account (host-level modes)
+
 `savingbuddy.registration.mode`:
 
 | mode | meaning |

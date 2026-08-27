@@ -39,6 +39,8 @@ const del = (): RequestInit => ({ method: 'DELETE' })
 export const api = {
   me: () => request<AuthUser>('/api/auth/me'),
   registrationStatus: () => request<RegistrationStatus>('/api/auth/registration'),
+  setRegistrationMode: (mode: 'closed' | 'invite') =>
+    request<RegistrationStatus>('/api/auth/registration', put({ mode })),
   login: (email: string, password: string) => request<AuthUser>('/api/auth/login', json({ email, password })),
   register: (email: string, password: string, signupCode?: string, inviteToken?: string) =>
     request<AuthUser>('/api/auth/register', json({ email, password, signupCode, inviteToken })),

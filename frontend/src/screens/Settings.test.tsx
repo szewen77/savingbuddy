@@ -39,10 +39,34 @@ describe('Settings', () => {
       : url === '/api/invites' ? Promise.resolve({ ok: true, status: 200, json: async () => invites })
       : Promise.resolve({ ok: true, status: 200, json: async () => settings })
 
-  it('hides invites entirely unless the instance runs on them', async () => {
+  it('offers to turn invitations on when registration is closed', async () => {
     fetchMock.mockImplementation(withMode('closed'))
     renderApp(<Settings />)
+    expect(await screen.findByText('Invitations')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Turn on invitations' })).toBeInTheDocument()
+    // No invite can be minted while it is closed.
+    expect(screen.queryByRole('button', { name: 'Create an invite' })).not.toBeInTheDocument()
+  })
+
+  it('turns invitations on from the app, with no env change', async () => {
+    fetchMock.mockImplementation((url: string, init?: { method?: string }) =>
+      url === '/api/auth/registration' && init?.method === 'PUT'
+        ? Promise.resolve({ ok: true, status: 200, json: async () => ({ mode: 'invite' }) })
+        : withMode('closed')(url))
+    renderApp(<Settings />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Turn on invitations' }))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/registration',
+        expect.objectContaining({ method: 'PUT' })))
+    const call = fetchMock.mock.calls.find((c) => c[0] === '/api/auth/registration' && c[1]?.method === 'PUT')!
+    expect(JSON.parse(call[1].body).mode).toBe('invite')
+  })
+
+  it('hides invites for host-configured modes it cannot change', async () => {
+    fetchMock.mockImplementation(withMode('code'))
+    renderApp(<Settings />)
     await screen.findByText('About you')
+    expect(screen.queryByText('Invitations')).not.toBeInTheDocument()
     expect(screen.queryByText('Invite someone')).not.toBeInTheDocument()
   })
 

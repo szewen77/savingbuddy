@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useCreateInvite, useInvites, useRegistrationStatus, useSaveSettings, useSettings } from '@/api/hooks'
+import { useCreateInvite, useInvites, useRegistrationStatus, useSaveSettings, useSetRegistrationMode, useSettings } from '@/api/hooks'
 import { HttpError } from '@/api/client'
 import type { AccountKind, Settings as SettingsData } from '@/api/types'
 import { parseAmount, rm } from '@/lib/format'
@@ -60,12 +60,38 @@ function toDraft(s: SettingsData): Draft {
  */
 function Invites() {
   const registration = useRegistrationStatus()
+  const setMode = useSetRegistrationMode()
   const invites = useInvites()
   const create = useCreateInvite()
   const [justCreated, setJustCreated] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  if (registration.data?.mode !== 'invite') return null
+  const mode = registration.data?.mode
+  // `code` and `open` are host-configured; the app must not imply it can change them.
+  const appControlled = mode === 'invite' || mode === 'closed'
+  if (!appControlled) return null
+
+  if (mode === 'closed') {
+    return (
+      <Card className="flex flex-col gap-3 p-6">
+        <div>
+          <h2 className="text-[15px] font-semibold">Invitations</h2>
+          <p className="mt-1 text-[12.5px] leading-[1.55] text-ink/55">
+            Registration is closed — nobody new can create an account. Turn on invitations
+            to let specific people join, one code each.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMode.mutate('invite')}
+          disabled={setMode.isPending}
+          className="self-start rounded-full bg-ink px-4 py-2 text-[12.5px] font-semibold text-mint transition-colors hover:bg-ink/90"
+        >
+          {setMode.isPending ? 'Turning on…' : 'Turn on invitations'}
+        </button>
+      </Card>
+    )
+  }
 
   const copy = (token: string) => {
     navigator.clipboard?.writeText(token)
@@ -116,14 +142,24 @@ function Invites() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => create.mutate(undefined, { onSuccess: (i) => setJustCreated(i.token) })}
-        disabled={create.isPending}
-        className="self-start rounded-full border border-ink/14 px-4 py-2 text-[12.5px] font-semibold transition-colors hover:bg-ink/5"
-      >
-        {create.isPending ? 'Creating…' : 'Create an invite'}
-      </button>
+      <div className="flex flex-wrap items-center gap-4">
+        <button
+          type="button"
+          onClick={() => create.mutate(undefined, { onSuccess: (i) => setJustCreated(i.token) })}
+          disabled={create.isPending}
+          className="rounded-full border border-ink/14 px-4 py-2 text-[12.5px] font-semibold transition-colors hover:bg-ink/5"
+        >
+          {create.isPending ? 'Creating…' : 'Create an invite'}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setJustCreated(null); setMode.mutate('closed') }}
+          disabled={setMode.isPending}
+          className="text-[12px] font-semibold text-ink/45 transition-colors hover:text-clay"
+        >
+          Close registration
+        </button>
+      </div>
 
       {create.error instanceof HttpError && (
         <div className="text-[12.5px] text-clay">{create.error.body?.message}</div>
