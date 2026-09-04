@@ -178,6 +178,21 @@ set the way Render sets it, against a TLS-enabled PostgreSQL 17 with a fresh
 database — migrations applied, health check green, registration gated, and a
 `pg_dump` → drop → `pg_restore` drill completed.
 
+### The app owns its own schema
+
+Flyway creates and manages a `savingbuddy` schema and never touches `public`.
+
+That is deliberate. A hosted Postgres puts things in `public` — extensions,
+helper functions, whatever a dashboard or quickstart left behind — and Flyway
+refuses to initialise a non-empty schema. Sharing `public` makes the first
+deploy depend on that schema happening to be empty, which is how the earlier
+deployment failed: a single leftover function, invoked by an event trigger, was
+enough to block it. Nothing in `public` can block it now.
+
+Add `&currentSchema=savingbuddy` to the JDBC URL so Hibernate validates against
+the same schema Flyway built. Override both with `DATABASE_SCHEMA` if you want a
+different name.
+
 ### Why these specific connection settings
 
 **Use Supabase's Session pooler**, port 5432:

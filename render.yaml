@@ -25,7 +25,11 @@ services:
       # transaction pooler (port 6543) is also wrong here — it does not support
       # prepared statements, which Hibernate relies on, and it breaks Flyway's
       # session-scoped locking.
-      #   jdbc:postgresql://aws-<n>-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+      #
+      # End the URL with ?currentSchema=savingbuddy so Hibernate validates against
+      # the app's own schema. Flyway creates that schema; `public` is never
+      # touched, so nothing in it can block the first deploy.
+      #   jdbc:postgresql://aws-<n>-<region>.pooler.supabase.com:5432/postgres?sslmode=require&currentSchema=savingbuddy
       - key: DATABASE_URL
         sync: false
       # Session pooler usernames are postgres.<project-ref>, not plain postgres.

@@ -82,6 +82,16 @@ spring:
   config:
     activate:
       on-profile: postgres
+  flyway:
+    # The app owns its own schema and never touches `public`.
+    #
+    # Supabase (and any hosted Postgres) puts things in `public` — extensions,
+    # helper functions, whatever a dashboard or quickstart created. Flyway
+    # refuses to initialise a non-empty schema, so sharing `public` makes the
+    # first deploy depend on that schema happening to be empty. It creates this
+    # schema itself if missing, so nothing has to be prepared by hand.
+    schemas: ${DATABASE_SCHEMA:savingbuddy}
+    default-schema: ${DATABASE_SCHEMA:savingbuddy}
   datasource:
     # No defaults, deliberately. A localhost fallback means a misconfigured
     # deployment starts against the wrong database — or an empty one — instead of
