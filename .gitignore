@@ -19,3 +19,8 @@ data/
 .idea/
 *.iml
 .vscode/
+
+# Goldens captured from a real database contain actual balances and salary.
+# Only the demo-household goldens belong in git.
+frontend/src/test/goldens/*.json
+!frontend/src/test/goldens/*-demo.json

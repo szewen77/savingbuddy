@@ -3,8 +3,6 @@ import { buildSummary } from './summary'
 import { fromExportBundle } from './importExport'
 import demoExport from '@/test/goldens/export-demo.json'
 import demoSummary from '@/test/goldens/summary-demo.json'
-import realExport from '@/test/goldens/export.json'
-import realSummary from '@/test/goldens/summary.json'
 
 /**
  * The goldens are not hand-written. They were captured from the running Spring
@@ -13,9 +11,14 @@ import realSummary from '@/test/goldens/summary.json'
  * disagree on a single figure, this fails.
  */
 describe('summary port, against the live backend it replaces', () => {
+  // Only the demo household is committed. A golden captured from a real
+  // database holds actual balances and salary, so it stays out of git — see
+  // .gitignore. To check against your own data:
+  //   curl localhost:8080/api/export  > src/test/goldens/export.json
+  //   curl localhost:8080/api/summary > src/test/goldens/summary.json
+  // then add it to the cases below locally.
   const cases = [
     ['demo household', demoExport, demoSummary],
-    ['real data', realExport, realSummary],
   ] as const
 
   for (const [label, bundle, expected] of cases) {
