@@ -50,9 +50,12 @@ import java.util.function.Supplier;
 public class SecurityConfig {
 
     private final boolean secureCookies;
+    private final java.util.Optional<LocalAutoLogin> localAutoLogin;
 
-    public SecurityConfig(@Value("${savingbuddy.secure-cookies:false}") boolean secureCookies) {
+    public SecurityConfig(@Value("${savingbuddy.secure-cookies:false}") boolean secureCookies,
+                          java.util.Optional<LocalAutoLogin> localAutoLogin) {
         this.secureCookies = secureCookies;
+        this.localAutoLogin = localAutoLogin;
     }
 
     @Bean
@@ -92,6 +95,11 @@ public class SecurityConfig {
                     res.getWriter().write("{\"message\":\"Your session ended. Please sign in again.\",\"errors\":[]}");
                 }))
             .logout(logout -> logout.disable());
+        // Present only under the 'local' profile, where it signs the single user in
+        // automatically. Absent — and therefore impossible — anywhere else.
+        localAutoLogin.ifPresent(filter ->
+            http.addFilterBefore(filter, org.springframework.security.web.authentication.www.BasicAuthenticationFilter.class));
+
         return http.build();
     }
 

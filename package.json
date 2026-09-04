@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "build": "(cd backend && ./mvnw -q clean package -DskipTests)",
-    "start": "java -jar backend/target/savingbuddy-api-0.1.0-SNAPSHOT.jar",
+    "start": "java -jar backend/target/savingbuddy-api-0.1.0-SNAPSHOT.jar --spring.profiles.active=local",
+    "start:login": "java -jar backend/target/savingbuddy-api-0.1.0-SNAPSHOT.jar",
     "start:demo": "java -jar backend/target/savingbuddy-api-0.1.0-SNAPSHOT.jar --spring.profiles.active=demo",
     "dev:api": "(cd backend && ./mvnw spring-boot:run -DskipFrontend)",
     "dev:api:demo": "(cd backend && ./mvnw spring-boot:run -DskipFrontend -Dspring-boot.run.profiles=demo)",

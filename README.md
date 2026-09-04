@@ -367,6 +367,33 @@ on every push and pull request:
 | **Frontend tests** | `npm ci`, `tsc -b`, Vitest. |
 | **Package JAR** | Builds the real shipping artifact, asserts the React bundle actually landed inside the JAR, boots it, and checks the API and UI both answer. The runnable JAR is uploaded as a build artifact. |
 
+## Running it locally, without signing in
+
+```bash
+npm start
+```
+
+That activates the `local` profile, which signs the single user in automatically —
+no password prompt, the way the app worked before accounts existed.
+
+It is guarded twice, because a filter that authenticates every request with no
+credential is exactly the thing you do not want switched on by accident:
+
+- **It refuses to construct unless `server.address` resolves to a loopback
+  address.** Checked by resolution, not string match, so `localhost` and
+  `127.0.0.1` both pass and `0.0.0.0` does not — the app will not start.
+- **It only acts when there is exactly one user.** Zero means the install is not
+  set up and registration should run; more than one means the instance is
+  genuinely multi-user, and picking a user would be a guess.
+
+It also logs a warning on every boot, so it is never silently on.
+
+To run locally *with* the normal sign-in screen:
+
+```bash
+npm run start:login
+```
+
 ## Who can create an account
 
 Controlled **from the app**, in Settings — not from a host environment variable.
@@ -387,6 +414,33 @@ from the UI: `open` is only safe on a loopback-bound local instance, and `code`
 needs a secret the app cannot supply. `code` still exists because it is the only
 mode that can bootstrap an empty database — minting an invite requires an
 account, and a fresh deployment has none.
+
+## Running it locally, without signing in
+
+```bash
+npm start
+```
+
+That activates the `local` profile, which signs the single user in automatically —
+no password prompt, the way the app worked before accounts existed.
+
+It is guarded twice, because a filter that authenticates every request with no
+credential is exactly the thing you do not want switched on by accident:
+
+- **It refuses to construct unless `server.address` resolves to a loopback
+  address.** Checked by resolution, not string match, so `localhost` and
+  `127.0.0.1` both pass and `0.0.0.0` does not — the app will not start.
+- **It only acts when there is exactly one user.** Zero means the install is not
+  set up and registration should run; more than one means the instance is
+  genuinely multi-user, and picking a user would be a guess.
+
+It also logs a warning on every boot, so it is never silently on.
+
+To run locally *with* the normal sign-in screen:
+
+```bash
+npm run start:login
+```
 
 ## Who can create an account (host-level modes)
 
