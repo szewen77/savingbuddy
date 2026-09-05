@@ -169,7 +169,7 @@ jobs:
           docker run -d --name ci-app --network ci-net -p 10000:10000 \
             -e PORT=10000 \
             -e SPRING_PROFILES_ACTIVE=postgres \
-            -e DATABASE_URL='jdbc:postgresql://ci-db:5432/savingbuddy' \
+            -e DATABASE_URL='jdbc:postgresql://ci-db:5432/savingbuddy?currentSchema=savingbuddy' \
             -e DATABASE_USERNAME=ci -e DATABASE_PASSWORD=ci \
             -e REGISTRATION_MODE=code -e REGISTRATION_CODE=a-very-long-signup-code \
             savingbuddy:ci
@@ -181,6 +181,16 @@ jobs:
           done
           docker logs ci-app
           test "$code" = "200" || { echo "::error::container did not become healthy on PORT=10000"; exit 1; }
+
+          # The app must own its schema and leave public alone — that is what
+          # stops a leftover object in public blocking a deploy.
+          docker exec ci-db psql -U ci -d savingbuddy -tAc \
+            "select count(*) from information_schema.tables where table_schema='savingbuddy'" \
+            | grep -qE '^\s*1[0-9]' || { echo "::error::tables were not created in the savingbuddy schema"; exit 1; }
+          docker exec ci-db psql -U ci -d savingbuddy -tAc \
+            "select count(*) from information_schema.tables where table_schema='public'" \
+            | grep -qE '^\s*0' || { echo "::error::the app wrote into public"; exit 1; }
+          echo "Schema isolation holds: tables in savingbuddy, public untouched." 
 
           # Registration must be gated, not accidentally open.
           mode=$(curl -s http://localhost:10000/api/auth/registration)
