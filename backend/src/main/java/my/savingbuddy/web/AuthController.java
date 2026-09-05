@@ -9,12 +9,15 @@ import my.savingbuddy.api.Dtos.AuthUser;
 import my.savingbuddy.api.Dtos.ChangePasswordRequest;
 import my.savingbuddy.api.Dtos.LoginRequest;
 import my.savingbuddy.api.Dtos.RegisterRequest;
+import my.savingbuddy.api.Dtos.PasswordResetDto;
+import my.savingbuddy.api.Dtos.RedeemResetRequest;
 import my.savingbuddy.api.Dtos.RegistrationStatus;
 import my.savingbuddy.security.CurrentUser;
 import my.savingbuddy.security.RegistrationPolicy;
 import my.savingbuddy.service.RegistrationModeService;
 import my.savingbuddy.security.LoginRateLimiter;
 import my.savingbuddy.service.AuthService;
+import my.savingbuddy.service.PasswordResetService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -34,22 +37,27 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final CurrentUser currentUser;
     private final SessionRegistry sessionRegistry;
+    private final my.savingbuddy.repository.UserRepository users;
     private final LoginRateLimiter rateLimiter;
     private final RegistrationPolicy registrationPolicy;
+    private final PasswordResetService passwordResets;
     private final RegistrationModeService modes;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
     public AuthController(AuthService auth, AuthenticationManager authenticationManager,
                           CurrentUser currentUser, SessionRegistry sessionRegistry,
+                          my.savingbuddy.repository.UserRepository users,
                           LoginRateLimiter rateLimiter, RegistrationPolicy registrationPolicy,
-                          RegistrationModeService modes) {
+                          RegistrationModeService modes, PasswordResetService passwordResets) {
         this.auth = auth;
         this.authenticationManager = authenticationManager;
         this.currentUser = currentUser;
         this.sessionRegistry = sessionRegistry;
+        this.users = users;
         this.rateLimiter = rateLimiter;
         this.registrationPolicy = registrationPolicy;
         this.modes = modes;
+        this.passwordResets = passwordResets;
     }
 
     /**
@@ -124,6 +132,52 @@ public class AuthController {
      * session, changing the password has to end it, or the change is theatre.
      * The caller's own session survives so they are not signed out mid-flow.
      */
+    /**
+     * Mints a reset code for an account the caller invited. Authenticated by the
+     * /api/** catch-all — there is deliberately no public "forgot password"
+     * endpoint, which is what removes the account-enumeration oracle entirely.
+     */
+    @PostMapping("/reset/{userId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PasswordResetDto mintReset(@PathVariable Long userId) {
+        return passwordResets.mint(currentUser.id(), userId);
+    }
+
+    /**
+     * Redeems a code and sets a new password. Public by necessity — the person
+     * using it cannot sign in.
+     *
+     * <p>POST, never GET: chat clients fetch link previews, and a crawler
+     * following a GET would burn the code before the human clicked it.
+     */
+    @PostMapping("/reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void redeemReset(@Valid @RequestBody RedeemResetRequest req, HttpServletRequest request) {
+        // Throttled explicitly: the limiter is invoked by hand in this class, not
+        // by a filter, so a new route inherits nothing. Keyed on IP only — keying
+        // on the target's email would let anyone lock a household member out of
+        // signing in by failing resets against their address.
+        String ip = request.getRemoteAddr();
+        rateLimiter.checkAllowed(ip, null);
+
+        Long userId;
+        try {
+            userId = passwordResets.redeem(req.token(), req.newPassword());
+        } catch (RuntimeException e) {
+            rateLimiter.recordFailure(ip, null);
+            throw e;
+        }
+
+        // Every session of that account, with no exception for a "current" one:
+        // this route is unauthenticated, and the person resetting may be
+        // recovering from someone else holding a session.
+        users.findById(userId).ifPresent(user -> {
+            Object principal = new my.savingbuddy.security.AppUserDetails(user);
+            sessionRegistry.getAllSessions(principal, false).forEach(SessionInformation::expireNow);
+        });
+        rateLimiter.recordSuccess(ip, null);
+    }
+
     @PostMapping("/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void changePassword(@Valid @RequestBody ChangePasswordRequest req, HttpServletRequest request) {

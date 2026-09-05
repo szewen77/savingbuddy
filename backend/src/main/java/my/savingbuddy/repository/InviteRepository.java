@@ -15,6 +15,9 @@ public interface InviteRepository extends JpaRepository<Invite, Long> {
 
     int countByCreatedByUserIdAndUsedAtIsNullAndExpiresAtAfter(Long userId, Instant now);
 
+    /** Whoever invited an account may reset it — the inviter relationship IS the authority. */
+    boolean existsByCreatedByUserIdAndUsedByUserId(Long createdByUserId, Long usedByUserId);
+
     /**
      * Claims an invite atomically.
      *

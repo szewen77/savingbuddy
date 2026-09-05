@@ -75,6 +75,11 @@ public class SecurityConfig {
                 // Platform health probe. Unauthenticated by necessity — the checker
                 // has no credentials — and it exposes nothing but up/down.
                 .requestMatchers("/healthz").permitAll()
+                // Redeeming a reset must be public — the person using it cannot sign
+                // in. POST only, and the exact path: minting one is
+                // /api/auth/reset/{userId}, which this does not match and which
+                // stays behind the catch-all below.
+                .requestMatchers(HttpMethod.POST, "/api/auth/reset").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll())
             .exceptionHandling(ex -> ex

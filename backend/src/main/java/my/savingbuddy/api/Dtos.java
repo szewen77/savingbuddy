@@ -225,6 +225,20 @@ public final class Dtos {
 
     public record RegistrationModeRequest(@NotBlank String mode) {}
 
+    /** The code is returned once, at creation, and never stored in plaintext. */
+    public record PasswordResetDto(String email, String token, java.time.Instant expiresAt) {
+        @Override
+        public String toString() { return "PasswordResetDto[email=" + email + ", token=***]"; }
+    }
+
+    public record RedeemResetRequest(
+        @NotBlank String token,
+        @NotBlank @Size(min = 8, max = 72) String newPassword
+    ) {
+        @Override
+        public String toString() { return "RedeemResetRequest[token=***, newPassword=***]"; }
+    }
+
     /** {@code token} is populated only on creation — it is never stored, so it cannot be shown again. */
     public record InviteDto(
         Long id,

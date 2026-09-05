@@ -409,6 +409,43 @@ To run locally *with* the normal sign-in screen:
 npm run start:login
 ```
 
+## Forgotten passwords
+
+There is no "forgot password" email. A bare `*.onrender.com` sender cannot
+publish SPF or DKIM for a domain it does not own, so the one message that matters
+most — to someone already locked out — lands in spam, silently. Instead:
+
+**Whoever invited an account can reset it.** In the app, open the member's entry
+and mint a reset code, then hand it over however you already talk to them. It is
+single-use, expires in **one hour**, and minting a new one retires the old.
+
+Three rules, each deliberate:
+
+- **You cannot reset your own account.** That would set a new password without
+  knowing the old one, so any open session would become a takeover. Use *Change
+  password* instead, which asks for the current one.
+- **You cannot reset a peer** — only someone you personally invited. Every
+  account here can mint invites and change instance settings, so "reset anyone"
+  would hand any household member a lateral takeover.
+- **Redeeming a code ends every session that account had**, not all-but-one. The
+  person resetting may be recovering from someone else holding a session.
+
+### If the owner is locked out
+
+The first account has no inviter, so nobody can reset it. That is the case the
+database console covers — you provisioned it, and you hold the credentials:
+
+```sql
+-- Supabase SQL Editor. Generate the hash with any bcrypt tool, cost 10.
+UPDATE savingbuddy.users
+   SET password_hash = '<a-fresh-bcrypt-hash>'
+ WHERE email = 'you@example.com';
+```
+
+This is why an email provider was not worth adding: for the one person it would
+matter most to, a console `UPDATE` is deterministic, whereas a delivered email is
+merely probable.
+
 ## Who can create an account
 
 Controlled **from the app**, in Settings — not from a host environment variable.
@@ -456,6 +493,43 @@ To run locally *with* the normal sign-in screen:
 ```bash
 npm run start:login
 ```
+
+## Forgotten passwords
+
+There is no "forgot password" email. A bare `*.onrender.com` sender cannot
+publish SPF or DKIM for a domain it does not own, so the one message that matters
+most — to someone already locked out — lands in spam, silently. Instead:
+
+**Whoever invited an account can reset it.** In the app, open the member's entry
+and mint a reset code, then hand it over however you already talk to them. It is
+single-use, expires in **one hour**, and minting a new one retires the old.
+
+Three rules, each deliberate:
+
+- **You cannot reset your own account.** That would set a new password without
+  knowing the old one, so any open session would become a takeover. Use *Change
+  password* instead, which asks for the current one.
+- **You cannot reset a peer** — only someone you personally invited. Every
+  account here can mint invites and change instance settings, so "reset anyone"
+  would hand any household member a lateral takeover.
+- **Redeeming a code ends every session that account had**, not all-but-one. The
+  person resetting may be recovering from someone else holding a session.
+
+### If the owner is locked out
+
+The first account has no inviter, so nobody can reset it. That is the case the
+database console covers — you provisioned it, and you hold the credentials:
+
+```sql
+-- Supabase SQL Editor. Generate the hash with any bcrypt tool, cost 10.
+UPDATE savingbuddy.users
+   SET password_hash = '<a-fresh-bcrypt-hash>'
+ WHERE email = 'you@example.com';
+```
+
+This is why an email provider was not worth adding: for the one person it would
+matter most to, a console `UPDATE` is deterministic, whereas a delivered email is
+merely probable.
 
 ## Who can create an account (host-level modes)
 
