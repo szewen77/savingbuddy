@@ -50,5 +50,31 @@ public class RequiredDeploymentSettings implements EnvironmentPostProcessor {
                     + "\nThere is deliberately no localhost fallback: a misconfigured deployment must fail,"
                     + " not quietly start against the wrong database.");
         }
+
+        checkUrlShape(env.getProperty("DATABASE_URL"));
+    }
+
+    /**
+     * Catches the wrong copy-paste before HikariCP does.
+     *
+     * <p>A hosted Postgres dashboard offers several connection strings, and only
+     * one of them is a JDBC URL. Pasting the libpq URI produces
+     * {@code 'url' must start with "jdbc"} from four frames inside the datasource
+     * factory, which names neither the variable nor the fix.
+     */
+    private void checkUrlShape(String url) {
+        if (url == null || url.isBlank() || url.startsWith("jdbc:")) return;
+
+        String hint = url.startsWith("postgres://") || url.startsWith("postgresql://")
+            ? "That looks like the libqp/URI form. Use the JDBC one instead — same host, prefixed with"
+              + " 'jdbc:' — and drop any user:password@ from it, since DATABASE_USERNAME and"
+              + " DATABASE_PASSWORD are passed separately."
+            : "A JDBC URL starts with 'jdbc:'.";
+
+        // Print only the scheme: the URI form usually carries the password.
+        String scheme = url.contains("://") ? url.substring(0, url.indexOf("://") + 3) : "(no scheme)";
+        throw new IllegalStateException(
+            "DATABASE_URL must be a JDBC URL, but it starts with '" + scheme + "'. " + hint
+                + "\nExpected shape: jdbc:postgresql://<host>:5432/postgres?sslmode=require&currentSchema=savingbuddy");
     }
 }
