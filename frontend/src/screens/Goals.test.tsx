@@ -32,7 +32,6 @@ describe('Goals', () => {
     const field = (label: string) => screen.getByText(label).parentElement!.querySelector('input')!
     await userEvent.type(field('Name'), 'Japan Trip')
     await userEvent.type(field('Target'), '8000')
-    await userEvent.type(field('Each month'), '500')
     await userEvent.type(field('Target month'), '2027-06')
 
     const submit = screen.getByRole('button', { name: 'Create goal' })
@@ -43,7 +42,46 @@ describe('Goals', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/goals', expect.objectContaining({ method: 'POST' })))
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/goals')!
     const body = JSON.parse(call[1].body)
-    expect(body).toMatchObject({ name: 'Japan Trip', target: 8000, monthly: 500, targetMonth: '2027-06', priority: false })
+    // Derived, never typed: RM8,000 over the 10 months from the plan's own
+    // today (2026-08) to 2027-06, rounded up so it lands on time.
+    expect(body).toMatchObject({ name: 'Japan Trip', target: 8000, monthly: 800, targetMonth: '2027-06', priority: false })
+  })
+
+  it('recomputes the monthly amount as the target and date change', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => withGoals([]) })
+    renderApp(<Goals />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Add your first goal' }))
+
+    const field = (label: string) => screen.getByText(label).parentElement!.querySelector('input')!
+    const monthly = () => screen.getByText('Each month').parentElement!.querySelector('output')!
+
+    await userEvent.type(field('Target'), '8000')
+    await userEvent.type(field('Target month'), '2027-06')
+    expect(monthly()).toHaveTextContent('800')
+
+    // Half of it already put aside halves what is left to find each month.
+    await userEvent.type(field('Saved so far'), '4000')
+    expect(monthly()).toHaveTextContent('400')
+    expect(screen.getByText('RM4,000 to go over 10 months.')).toBeInTheDocument()
+  })
+
+  it('has nothing left to ask for once the target is met', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => withGoals([]) })
+    renderApp(<Goals />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Add your first goal' }))
+
+    const field = (label: string) => screen.getByText(label).parentElement!.querySelector('input')!
+    await userEvent.type(field('Name'), 'Done')
+    await userEvent.type(field('Target'), '1000')
+    await userEvent.type(field('Saved so far'), '1000')
+    await userEvent.type(field('Target month'), '2027-06')
+
+    expect(screen.getByText('Already fully saved — nothing left to put aside.')).toBeInTheDocument()
+    // Still savable — the server's minimum of 1 stands in for a pace that no
+    // longer means anything.
+    await userEvent.click(screen.getByRole('button', { name: 'Create goal' }))
+    const call = await waitFor(() => fetchMock.mock.calls.find((c) => c[0] === '/api/goals')!)
+    expect(JSON.parse(call[1].body).monthly).toBe(1)
   })
 
   it('blocks a goal that is already over-saved or wrongly dated', async () => {
@@ -55,7 +93,6 @@ describe('Goals', () => {
     await userEvent.type(field('Name'), 'Backwards')
     await userEvent.type(field('Target'), '1000')
     await userEvent.type(field('Saved so far'), '5000')
-    await userEvent.type(field('Each month'), '100')
     await userEvent.type(field('Target month'), '2027-13')
 
     expect(screen.getByText('Saved cannot be more than the target.')).toBeInTheDocument()

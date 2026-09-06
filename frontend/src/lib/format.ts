@@ -4,6 +4,8 @@ const intFmt = new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 })
 
 /** RM1,426 — rounded to the nearest ringgit (the app never shows sen). */
 export const rm = (n: number) => 'RM' + intFmt.format(Math.round(n))
+/** 1,426 — the digits alone, for fields that print their own RM. */
+export const amount = (n: number) => intFmt.format(Math.round(n))
 /** RM142 — rounded down, for allowances where rounding up would overpromise. */
 export const rmDown = (n: number) => 'RM' + intFmt.format(Math.floor(n))
 /** −RM42 / +RM4,500 */

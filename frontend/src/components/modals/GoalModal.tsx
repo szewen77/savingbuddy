@@ -1,12 +1,19 @@
 import { useState } from 'react'
-import { useCreateGoal, useUpdateGoal } from '@/api/hooks'
+import { useCreateGoal, useSummary, useUpdateGoal } from '@/api/hooks'
 import { HttpError } from '@/api/client'
 import type { Goal } from '@/api/types'
-import { parseAmount, rm } from '@/lib/format'
+import { amount, parseAmount, rm } from '@/lib/format'
 import { Field, MoneyField, inputClass } from '@/components/ui/Form'
 import { CloseButton, Modal } from '@/components/ui/Modal'
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/
+
+/** Whole months from one YYYY-MM to another. Negative when `to` is in the past. */
+function monthsBetween(from: string, to: string): number {
+  const [fy, fm] = from.split('-').map(Number)
+  const [ty, tm] = to.split('-').map(Number)
+  return (ty - fy) * 12 + (tm - fm)
+}
 
 /** Edits an existing goal when given one, otherwise creates a new one. */
 export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
@@ -18,7 +25,6 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
   const [description, setDescription] = useState(goal?.description ?? '')
   const [target, setTarget] = useState(goal ? String(goal.target) : '')
   const [saved, setSaved] = useState(goal ? String(goal.saved) : '')
-  const [monthly, setMonthly] = useState(goal ? String(goal.monthly) : '')
   // effectiveMonth, not targetMonth: it is the date the screen shows, so it is
   // the date the user thinks they are editing. Prefilling the undelayed month
   // would silently pull a delayed goal backwards in time.
@@ -26,12 +32,26 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
   const [priority, setPriority] = useState(goal?.priority ?? false)
 
   const active = editing ? update : create
+
+  // The monthly contribution is derived, never typed: it is exactly what the
+  // remaining amount divided over the months left comes to. Taking "now" from
+  // the server's own today rather than the browser's keeps this agreeing with
+  // the backend, which recomputes the same figure against its clock.
+  const today = useSummary().data?.profile.today
+  const remaining = Math.max(0, parseAmount(target) - parseAmount(saved))
+  const monthsToTarget =
+    today && monthPattern.test(month) ? Math.max(0, monthsBetween(today.slice(0, 7), month)) : null
+  // Ceiling, and to whole ringgit, so the goal lands on time rather than a
+  // month late — the same rounding the server uses for its catch-up figure.
+  const monthly =
+    monthsToTarget === null ? null : monthsToTarget === 0 ? remaining : Math.ceil(remaining / monthsToTarget)
+
   const problems: string[] = []
   if (!name.trim()) problems.push('Give the goal a name.')
   if (parseAmount(target) <= 0) problems.push('Set a target above zero.')
-  if (parseAmount(monthly) <= 0) problems.push('Set a monthly contribution above zero.')
   if (parseAmount(saved) > parseAmount(target)) problems.push('Saved cannot be more than the target.')
   if (!monthPattern.test(month)) problems.push('Target month must look like 2027-06.')
+  else if (monthly === null) problems.push('Still loading your plan — try again in a moment.')
 
   const submit = () => {
     if (problems.length || active.isPending) return
@@ -40,7 +60,9 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
       description: description.trim(),
       target: parseAmount(target),
       saved: parseAmount(saved),
-      monthly: parseAmount(monthly),
+      // The server requires at least 1. That floor is only ever reached by a
+      // goal already at its target, where the stored pace no longer matters.
+      monthly: Math.max(1, monthly ?? 0),
       targetMonth: month,
       priority,
     }
@@ -49,10 +71,6 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
   }
 
   const serverError = active.error instanceof HttpError ? active.error.body?.message : null
-  const monthsAtPace =
-    parseAmount(monthly) > 0
-      ? Math.ceil(Math.max(0, parseAmount(target) - parseAmount(saved)) / parseAmount(monthly))
-      : null
 
   return (
     <Modal onClose={onClose} label={editing ? 'Edit goal' : 'New goal'}>
@@ -61,7 +79,8 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
           <div>
             <h2 className="text-[18px] font-semibold tracking-[-0.2px]">{editing ? 'Edit goal' : 'New goal'}</h2>
             <p className="mt-1 text-[12.5px] text-ink/55">
-              What you're saving for, and the pace you plan to get there.
+              What you're saving for, and when you want it by. The monthly amount
+              follows from those.
             </p>
           </div>
           <CloseButton onClick={onClose} />
@@ -87,9 +106,6 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
           <Field label="Saved so far">
             <MoneyField value={saved} onChange={setSaved} placeholder="0" />
           </Field>
-          <Field label="Each month">
-            <MoneyField value={monthly} onChange={setMonthly} placeholder="500" />
-          </Field>
           <Field label="Target month" hint="Year and month, e.g. 2027-06.">
             <input
               value={month}
@@ -99,11 +115,23 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
               inputMode="numeric"
             />
           </Field>
+          <Field label="Each month" hint="Worked out from the three above.">
+            <output className="flex h-11 items-center gap-2 rounded-xl bg-ink/6 px-3.5">
+              <span className="text-[13px] text-ink/45">RM</span>
+              <span className="tnum text-[14px] font-semibold">
+                {monthly === null ? '—' : amount(monthly)}
+              </span>
+            </output>
+          </Field>
         </div>
 
-        {monthsAtPace !== null && parseAmount(target) > 0 && (
+        {monthly !== null && parseAmount(target) > 0 && (
           <div className="rounded-xl bg-haze px-3.5 py-2.5 text-[12.5px] text-ink/60">
-            At {rm(parseAmount(monthly))}/mo that's {monthsAtPace} month{monthsAtPace === 1 ? '' : 's'} of saving.
+            {remaining === 0
+              ? 'Already fully saved — nothing left to put aside.'
+              : monthsToTarget === 0
+                ? `${rm(remaining)} to go, and the target month is now — all of it this month.`
+                : `${rm(remaining)} to go over ${monthsToTarget} month${monthsToTarget === 1 ? '' : 's'}.`}
           </div>
         )}
 
