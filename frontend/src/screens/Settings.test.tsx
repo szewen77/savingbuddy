@@ -62,12 +62,29 @@ describe('Settings', () => {
     expect(JSON.parse(call[1].body).mode).toBe('invite')
   })
 
-  it('hides invites for host-configured modes it cannot change', async () => {
+  // The shared-code mode is the one a fresh deployment starts in, so it is the
+  // one that most needs a way out. Hiding the card here left the only route to
+  // invitations going through the host's environment.
+  it('offers the switch to invitations from the host-configured code mode', async () => {
     fetchMock.mockImplementation(withMode('code'))
     renderApp(<Settings />)
-    await screen.findByText('About you')
-    expect(screen.queryByText('Invitations')).not.toBeInTheDocument()
-    expect(screen.queryByText('Invite someone')).not.toBeInTheDocument()
+    expect(await screen.findByText('Invitations')).toBeInTheDocument()
+    expect(screen.getByText(/shared code stops working/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Turn on invitations' })).toBeInTheDocument()
+    // Still no minting until the instance is actually on invitations.
+    expect(screen.queryByRole('button', { name: 'Create an invite' })).not.toBeInTheDocument()
+  })
+
+  it('switches out of code mode without a host change', async () => {
+    fetchMock.mockImplementation((url: string, init?: { method?: string }) =>
+      url === '/api/auth/registration' && init?.method === 'PUT'
+        ? Promise.resolve({ ok: true, status: 200, json: async () => ({ mode: 'invite' }) })
+        : withMode('code')(url))
+    renderApp(<Settings />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Turn on invitations' }))
+    const call = await waitFor(() =>
+      fetchMock.mock.calls.find((c) => c[0] === '/api/auth/registration' && c[1]?.method === 'PUT')!)
+    expect(JSON.parse(call[1].body).mode).toBe('invite')
   })
 
   it('shows a new invite once, with a warning that it will not be shown again', async () => {

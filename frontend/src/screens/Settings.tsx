@@ -55,8 +55,9 @@ function toDraft(s: SettingsData): Draft {
 }
 
 /**
- * Invitations. Shown only when the instance actually runs on them, so it does
- * not advertise a door that is bolted shut.
+ * Invitations. Always shown, because the section is how you *reach* invitations
+ * — gating it on already being in invite mode made the only way in a host
+ * environment change, which is the thing moving the mode into the app removed.
  */
 function Invites() {
   const registration = useRegistrationStatus()
@@ -67,18 +68,23 @@ function Invites() {
   const [copied, setCopied] = useState(false)
 
   const mode = registration.data?.mode
-  // `code` and `open` are host-configured; the app must not imply it can change them.
-  const appControlled = mode === 'invite' || mode === 'closed'
-  if (!appControlled) return null
+  if (!mode) return null
 
-  if (mode === 'closed') {
+  // Every mode except `invite` lands here. `code` and `open` are set on the
+  // host, and this card cannot change *them* — but it can move the instance
+  // onto invitations, which is the only thing anyone needed the host for.
+  if (mode !== 'invite') {
+    const who =
+      mode === 'closed' ? 'Registration is closed — nobody new can create an account.'
+      : mode === 'code' ? 'New accounts need the shared signup code set on the host. Anyone who has it can sign up, as often as they like, and it never expires.'
+      : 'Anyone who can reach this instance can create an account — safe only while it is bound to this machine.'
     return (
       <Card className="flex flex-col gap-3 p-6">
         <div>
           <h2 className="text-[15px] font-semibold">Invitations</h2>
           <p className="mt-1 text-[12.5px] leading-[1.55] text-ink/55">
-            Registration is closed — nobody new can create an account. Turn on invitations
-            to let specific people join, one code each.
+            {who} Turn on invitations to admit people one at a time, each with a
+            single-use code you create here.
           </p>
         </div>
         <button
@@ -89,6 +95,15 @@ function Invites() {
         >
           {setMode.isPending ? 'Turning on…' : 'Turn on invitations'}
         </button>
+        {mode === 'code' && (
+          <p className="text-[11.5px] leading-[1.5] text-ink/45">
+            The shared code stops working the moment invitations are on. You do not
+            need to remove it from the host, and you can switch back from here.
+          </p>
+        )}
+        {setMode.error instanceof HttpError && (
+          <div className="text-[12.5px] text-clay">{setMode.error.body?.message}</div>
+        )}
       </Card>
     )
   }
