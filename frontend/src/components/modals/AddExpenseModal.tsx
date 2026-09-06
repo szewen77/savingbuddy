@@ -1,29 +1,48 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAddExpense, useSummary } from '@/api/hooks'
 import { parseAmount, rm, rmDown } from '@/lib/format'
 import { useUi } from '@/state/ui'
 import { AmountInput } from '@/components/ui/AmountInput'
 import { Chip } from '@/components/ui/Chip'
 import { CloseButton, Modal } from '@/components/ui/Modal'
+import { inputClass } from '@/components/ui/Form'
 
-const CATEGORIES = ['Groceries', 'Eating out', 'Transport', 'Other']
+/** Starting points, not a closed list — the field takes anything up to 40 characters. */
+const SUGGESTIONS = ['Groceries', 'Eating out', 'Transport', 'Other']
+
+/** Matches the server's @Size(max = 40) on AddExpenseRequest.category. */
+const CATEGORY_MAX = 40
 
 export function AddExpenseModal() {
   const { closeModal, showToast } = useUi()
   const { data } = useSummary()
   const addExpense = useAddExpense()
   const [pad, setPad] = useState('')
-  const [category, setCategory] = useState(CATEGORIES[0])
+  const [category, setCategory] = useState('')
+  const [accountId, setAccountId] = useState<number | null>(null)
+
+  const accounts = data?.accounts ?? []
+
+  // Default to the spending account, which is what the server picked when the
+  // modal sent no account at all. Falls back to the first account so the field
+  // is never empty once accounts have loaded.
+  const defaultAccount = useMemo(
+    () => accounts.find((a) => a.kind === 'SPENDING') ?? accounts[0],
+    [accounts],
+  )
+  const selectedId = accountId ?? defaultAccount?.id ?? null
+  const account = accounts.find((a) => a.id === selectedId)
 
   const amount = parseAmount(pad)
   const safeBefore = data?.safeToSpend.amount ?? 0
   const after = safeBefore - amount
-  const account = data?.accounts.find((a) => a.kind === 'SPENDING')
+  const label = category.trim()
+  const ready = amount > 0 && label.length > 0 && selectedId != null
 
   const submit = () => {
-    if (amount <= 0 || addExpense.isPending) return
+    if (!ready || addExpense.isPending) return
     addExpense.mutate(
-      { amount, category },
+      { amount, category: label, accountId: selectedId ?? undefined },
       {
         onSuccess: (res) => {
           closeModal()
@@ -49,16 +68,47 @@ export function AddExpenseModal() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-[7px]" role="group" aria-label="Category">
-          {CATEGORIES.map((c) => (
-            <Chip key={c} label={c} selected={category === c} onClick={() => setCategory(c)} />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12.5px] font-semibold">What was it for?</span>
+          <input
+            value={category}
+            onChange={(e) => setCategory(e.target.value.slice(0, CATEGORY_MAX))}
+            onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
+            className={inputClass}
+            placeholder="Groceries, haircut, Grab to work…"
+            maxLength={CATEGORY_MAX}
+          />
+        </label>
+
+        <div className="flex flex-wrap gap-[7px]" role="group" aria-label="Common categories">
+          {SUGGESTIONS.map((c) => (
+            <Chip key={c} label={c} selected={label === c} onClick={() => setCategory(c)} />
           ))}
         </div>
 
-        <div className="flex items-center justify-between text-[12.5px] text-ink/50">
-          <span>Account</span>
-          <span className="font-semibold text-ink">{account ? `${account.name} · Spending` : '—'}</span>
-        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12.5px] font-semibold">Pay from</span>
+          <select
+            value={selectedId ?? ''}
+            onChange={(e) => setAccountId(Number(e.target.value))}
+            className={inputClass}
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} · {rm(a.balance)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* The allowance is account-independent, so spending from a non-spending
+            account still moves Safe to Spend. Saying so beats a surprise. */}
+        {account && account.kind !== 'SPENDING' && (
+          <p className="text-[11.5px] leading-[1.5] text-ink/50">
+            This comes out of {account.name}, and still counts against this month's
+            spending allowance.
+          </p>
+        )}
 
         {addExpense.isError && (
           <div className="text-[12.5px] text-clay">Couldn't save that — {(addExpense.error as Error).message}</div>
@@ -67,12 +117,15 @@ export function AddExpenseModal() {
         <button
           type="button"
           onClick={submit}
-          disabled={amount <= 0 || addExpense.isPending}
+          disabled={!ready || addExpense.isPending}
           className={`flex h-[50px] items-center justify-center rounded-[25px] text-[14px] font-semibold transition-colors ${
-            amount > 0 ? 'bg-ink text-mint hover:bg-ink/90' : 'cursor-not-allowed bg-dust text-ink/40'
+            ready ? 'bg-ink text-mint hover:bg-ink/90' : 'cursor-not-allowed bg-dust text-ink/40'
           }`}
         >
-          {addExpense.isPending ? 'Adding…' : amount > 0 ? `Add ${rm(amount)} · ${category}` : 'Enter an amount'}
+          {addExpense.isPending ? 'Adding…'
+            : amount <= 0 ? 'Enter an amount'
+            : !label ? 'Say what it was for'
+            : `Add ${rm(amount)} · ${label}`}
         </button>
       </div>
     </Modal>
