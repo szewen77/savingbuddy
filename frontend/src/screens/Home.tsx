@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSummary } from '@/api/hooks'
 import type { Goal, SafeToSpend } from '@/api/types'
-import { dayOfMonth, monthAbbrev, monthShort, rm, rmDown } from '@/lib/format'
+import { dayOfMonth, monthAbbrev, monthShort, pluralMonths, rm, rmDown } from '@/lib/format'
 import { Card, CardHead, Hero } from '@/components/ui/Card'
 import { ProgressBar, StackedBar } from '@/components/ui/ProgressBar'
 import { TransactionRow } from '@/components/TransactionRow'
@@ -65,12 +65,16 @@ function SafeToSpendHero({ safe, window: win, onToggle }: { safe: SafeToSpend; w
   )
 }
 
+/**
+ * Reports the pace rather than a verdict. "On track" was safe only while BEHIND
+ * covered the other case; with the behind line gone, a goal stored at too low a
+ * pace would have been labelled on track, which is not true of it.
+ */
 function goalNote(g: Goal): string {
   const base = `${rm(g.saved)} of ${rm(g.target)}`
   if (g.status === 'ON_HOLD') return `${base} · on hold`
   if (g.status === 'DELAYED') return `${base} · pushed back ${g.delayMonths} month${g.delayMonths === 1 ? '' : 's'}`
-  if (g.status === 'BEHIND') return `${base} · behind by ${rm(g.behindBy)}`
-  return `${base} · on track`
+  return `${base} · ${pluralMonths(g.monthsAtPace)} to go`
 }
 
 export function Home() {

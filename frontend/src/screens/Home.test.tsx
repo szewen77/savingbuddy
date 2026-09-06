@@ -42,10 +42,14 @@ describe('Home', () => {
     expect(screen.getByText('6 bills this month · 2 already paid')).toBeInTheDocument()
   })
 
-  it('flags a goal that is behind', async () => {
+  // The monthly contribution is derived from the target date now, so nothing can
+  // be set at a pace that misses it. The card reports the pace, not a verdict —
+  // "on track" would have been a false claim about a goal stored before that.
+  it('reports the pace rather than judging it', async () => {
     renderApp(<Home />)
     await screen.findByText('RM1,426')
-    expect(screen.getByText('RM3,200 of RM5,000 · behind by RM600')).toBeInTheDocument()
+    expect(screen.getByText('RM3,200 of RM5,000 · 6 months to go')).toBeInTheDocument()
+    expect(screen.queryByText(/behind by/)).not.toBeInTheDocument()
   })
 
   it('surfaces a clear error when the API is unreachable', async () => {

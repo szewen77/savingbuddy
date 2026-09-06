@@ -8,14 +8,17 @@ import { ErrorState, Loading } from '@/components/ui/States'
 import { GoalModal } from '@/components/modals/GoalModal'
 import { useUi } from '@/state/ui'
 
+/**
+ * No BEHIND arm: the monthly contribution is derived from the target date, so a
+ * goal can no longer be set at a pace that misses it. Goals stored before that
+ * fall through to the pace line, which is still true of them.
+ */
 function statusNote(g: Goal): { dot: string; text: string } {
   switch (g.status) {
     case 'ON_HOLD':
       return { dot: 'bg-clay', text: 'Recent spending used up everything still owed to this goal.' }
     case 'DELAYED':
       return { dot: 'bg-clay', text: `Pushed back ${pluralMonths(g.delayMonths)} by recent spending.` }
-    case 'BEHIND':
-      return { dot: 'bg-clay', text: `Behind by ${rm(g.behindBy)} — add ${rm(g.extraMonthly)}/mo to land on time.` }
     default:
       return { dot: 'bg-forest', text: `${pluralMonths(g.monthsAtPace)} of saving left at this pace.` }
   }
