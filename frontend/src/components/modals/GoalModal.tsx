@@ -56,7 +56,7 @@ export function GoalModal({ goal, onClose }: { goal?: Goal; onClose: () => void 
 
   return (
     <Modal onClose={onClose} label={editing ? 'Edit goal' : 'New goal'}>
-      <div className="flex w-full max-w-[520px] flex-col gap-5 p-7">
+      <div className="flex w-full max-w-[520px] flex-col gap-5 rounded-[26px] bg-canvas p-7 shadow-modal">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-[18px] font-semibold tracking-[-0.2px]">{editing ? 'Edit goal' : 'New goal'}</h2>
