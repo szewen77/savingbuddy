@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-export type ModalState = { kind: 'add' } | { kind: 'afford' } | null
+export type ModalState = { kind: 'add' } | { kind: 'afford' } | { kind: 'goal' } | null
 
 interface UiState {
   modal: ModalState
   openAdd: () => void
   openAfford: () => void
+  openGoal: () => void
   closeModal: () => void
   toast: string | null
   showToast: (message: string) => void
@@ -32,6 +33,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
     modal,
     openAdd: () => setModal({ kind: 'add' }),
     openAfford: () => setModal({ kind: 'afford' }),
+    openGoal: () => setModal({ kind: 'goal' }),
     closeModal: () => setModal(null),
     toast,
     showToast,

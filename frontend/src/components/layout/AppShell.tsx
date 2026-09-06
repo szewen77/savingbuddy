@@ -27,8 +27,11 @@ function headline(path: string, s?: Summary): [string, string] {
 export function AppShell() {
   const { data } = useSummary()
   const { pathname } = useLocation()
-  const { modal, openAdd, openAfford } = useUi()
+  const { modal, openAdd, openAfford, openGoal } = useUi()
   const [title, sub] = headline(pathname, data)
+  const onGoals = pathname.startsWith('/goals')
+  // Settings and Insights are screens you read, not screens you record money on.
+  const recordable = !pathname.startsWith('/settings') && !pathname.startsWith('/insights')
 
   return (
     <div className="flex min-h-screen bg-canvas">
@@ -42,11 +45,14 @@ export function AppShell() {
             <h1 className="text-[23px] font-semibold tracking-[-0.3px]">{title}</h1>
             <div className="mt-1 text-[13px] text-ink/50">{sub || ' '}</div>
           </div>
-          {!pathname.startsWith('/settings') && (
+          {recordable && (
             <div className="flex items-center gap-2.5">
               <Button variant="ghost" onClick={openAfford}>Can I afford this?</Button>
-              <Button onClick={openAdd}>
-                <span className="text-[17px] leading-none">+</span>Add
+              {/* Named, not just "Add": one generic button that always meant
+                  "expense" was indistinguishable from an add-a-goal button on
+                  the Goals screen. */}
+              <Button onClick={onGoals ? openGoal : openAdd}>
+                <span className="text-[17px] leading-none">+</span>{onGoals ? 'Goal' : 'Expense'}
               </Button>
             </div>
           )}

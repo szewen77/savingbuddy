@@ -6,6 +6,7 @@ import { Card, Hero } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ErrorState, Loading } from '@/components/ui/States'
 import { GoalModal } from '@/components/modals/GoalModal'
+import { useUi } from '@/state/ui'
 
 function statusNote(g: Goal): { dot: string; text: string } {
   switch (g.status) {
@@ -121,19 +122,22 @@ export function Goals() {
   const { data, isPending, error, refetch } = useSummary()
   const remove = useDeleteGoal()
   const [editing, setEditing] = useState<Goal | null>(null)
-  const [adding, setAdding] = useState(false)
+  // Adding lives in shared UI state so the header's "+ Goal" can open it too;
+  // editing stays local, since only this screen knows which goal is being edited.
+  const { modal, openGoal, closeModal } = useUi()
+  const adding = modal?.kind === 'goal'
 
   if (isPending) return <Loading label="Checking your goals…" />
   if (error) return <ErrorState error={error} retry={refetch} />
 
   const priority = data.goals.find((g) => g.priority)
   const rest = data.goals.filter((g) => !g.priority)
-  const close = () => { setEditing(null); setAdding(false) }
+  const close = () => { setEditing(null); closeModal() }
 
   return (
     <>
       {data.goals.length === 0 ? (
-        <EmptyGoals onAdd={() => setAdding(true)} />
+        <EmptyGoals onAdd={openGoal} />
       ) : (
         <div className="flex max-w-[1000px] flex-col gap-5">
           <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
@@ -149,7 +153,7 @@ export function Goals() {
           </div>
           <button
             type="button"
-            onClick={() => setAdding(true)}
+            onClick={openGoal}
             className="self-start text-[12.5px] font-semibold text-forest hover:underline"
           >
             + Add a goal
