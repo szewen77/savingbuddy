@@ -14,8 +14,11 @@ import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Computes the numbers the app is built around: Safe to Spend, what each account is for,
@@ -59,10 +62,15 @@ public class BudgetService {
 
     /** Discretionary spending this month — what Safe to Spend is measured against. Bills are excluded. */
     public BigDecimal spentThisMonth(Long userId) {
-        return Money.scale(transactionsThisMonth(userId).stream()
+        return Money.scale(sumSpending(transactionsThisMonth(userId).stream()));
+    }
+
+    /** The discretionary total of a stream of transactions. Bills and income are excluded. */
+    private static BigDecimal sumSpending(Stream<Transaction> transactions) {
+        return transactions
             .filter(t -> t.getKind() == TransactionKind.SPENDING)
             .map(Transaction::getAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add));
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /** Every ringgit that left the accounts this month, bills included. */
@@ -117,7 +125,19 @@ public class BudgetService {
         YearMonth month = clock.currentMonth();
         String monthLabel = month.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
 
-        BigDecimal spent = spentThisMonth(userId);
+        // Fetched once and reduced twice: the month's total drives Safe to Spend,
+        // which is allowance-based and account-independent, while the per-account
+        // split is what each account card reports. An expense can now name any
+        // account the user owns, so attributing the whole month's spending to
+        // whichever account is SPENDING would report money that never left it.
+        List<Transaction> monthTransactions = transactionsThisMonth(userId);
+        BigDecimal spent = Money.scale(sumSpending(monthTransactions.stream()));
+        Map<Long, BigDecimal> spentByAccount = monthTransactions.stream()
+            .filter(t -> t.getKind() == TransactionKind.SPENDING)
+            .collect(Collectors.groupingBy(
+                t -> t.getAccount().getId(),
+                Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)));
+
         BigDecimal safe = Money.floorZero(plan.getSpendingAllowance().subtract(spent));
         int daysRemaining = clock.daysRemainingInMonth();
         BigDecimal daily = Money.divide(safe, daysRemaining);
@@ -146,7 +166,7 @@ public class BudgetService {
             BigDecimal reserved = switch (a.getKind()) {
                 case BILLS -> unpaid.min(a.getBalance());
                 case SAVINGS -> committed.min(a.getBalance());
-                case SPENDING -> spent;
+                case SPENDING -> Money.scale(spentByAccount.getOrDefault(a.getId(), BigDecimal.ZERO));
             };
             BigDecimal free = switch (a.getKind()) {
                 case SPENDING -> safe;

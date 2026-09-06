@@ -1,5 +1,6 @@
 package my.savingbuddy.web;
 
+import com.jayway.jsonpath.JsonPath;
 import my.savingbuddy.ApiTestBase;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -152,5 +153,40 @@ class ApiIntegrationTest extends ApiTestBase {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.weeks").value(3))
             .andExpect(jsonPath("$.weeklyAmount").value(100.00));
+    }
+
+    /**
+     * An expense may name any account the user owns, so the month's spending is
+     * attributed to the account the money actually left. Safe to Spend is
+     * allowance-based and stays global — it falls by the same RM45 either way.
+     *
+     * <p>The pairing is the point: {@code spentThisMonth} and the spending
+     * account's {@code reserved} must now be allowed to disagree. Before, every
+     * expense necessarily came from the spending account, so reporting the whole
+     * month's total against it happened to be true.
+     */
+    @Test @Order(9)
+    void spendingFromAnotherAccountIsNotAttributedToTheSpendingAccount() throws Exception {
+        String before = doGet("/api/summary").andReturn().getResponse().getContentAsString();
+        int billsAccountId = JsonPath.<java.util.List<Integer>>read(
+            before, "$.accounts[?(@.name=='Public Bank')].id").get(0);
+
+        doPost("/api/transactions",
+                "{\"amount\":45,\"category\":\"Haircut\",\"accountId\":" + billsAccountId + "}")
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.transaction.accountName").value("Public Bank"))
+            .andExpect(jsonPath("$.transaction.category").value("Haircut"))
+            .andExpect(jsonPath("$.safeToSpend").value(655.00));
+
+        doGet("/api/summary")
+            .andExpect(jsonPath("$.safeToSpend.spentThisMonth").value(1345.00))
+            .andExpect(jsonPath("$.safeToSpend.amount").value(655.00))
+            // The ringgit left Public Bank.
+            .andExpect(jsonPath("$.accounts[0].name").value("Public Bank"))
+            .andExpect(jsonPath("$.accounts[0].balance").value(5955.00))
+            // ...so Hong Leong reports only its own 1300, not the full 1345.
+            .andExpect(jsonPath("$.accounts[2].name").value("Hong Leong Bank"))
+            .andExpect(jsonPath("$.accounts[2].balance").value(1274.00))
+            .andExpect(jsonPath("$.accounts[2].reserved").value(1300.00));
     }
 }
